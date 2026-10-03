@@ -1,0 +1,26 @@
+# Directory segments where executables should not live (matched against lower-cased directory)
+/upload/
+/uploads/
+/uploadfiles/
+/attachment/
+/attachments/
+/files/
+/images/
+/image/
+/img/
+/icon/
+/icons/
+/css/
+/js/
+/content/
+/temp/
+/tmp/
+/app_data/
+/userfiles/
+/aspnet_client/
+/_vti_
+/media/
+/download/
+/downloads/
+/static/
+/assets/

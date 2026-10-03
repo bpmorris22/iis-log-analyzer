@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IIS Log Analyzer Manual</title>
+<meta name="description" content="User manual for IIS Log Analyzer, an offline HTA for forensic analysis of Microsoft IIS W3C logs.">
+<style>
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f0f2f5; --text: #1c2330; --muted: #5b6676; --border: #dde2e9;
+  --accent: #1f5fa8; --accent-soft: #e6eef8; --code-bg: #eef1f5; --warn-bg: #fff6e0; --warn-border: #e8c46a;
+  --note-bg: #eaf3ff; --note-border: #9cc0ea; --crit: #a61b1b; --high: #c0392b; --med: #c26a00; --low: #6b7a8c; --info: #4a6fa5;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161c; --surface: #191f27; --surface-2: #202833; --text: #e3e8ef; --muted: #9aa6b5; --border: #2c3643;
+    --accent: #7fb2ee; --accent-soft: #1d2b3c; --code-bg: #222b36; --warn-bg: #2d2615; --warn-border: #8a6d22;
+    --note-bg: #17273a; --note-border: #35587f; --crit: #ff7b7b; --high: #ff8f80; --med: #f0b35b; --low: #a7b3c2; --info: #8fb3e6;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161c; --surface: #191f27; --surface-2: #202833; --text: #e3e8ef; --muted: #9aa6b5; --border: #2c3643;
+  --accent: #7fb2ee; --accent-soft: #1d2b3c; --code-bg: #222b36; --warn-bg: #2d2615; --warn-border: #8a6d22;
+  --note-bg: #17273a; --note-border: #35587f; --crit: #ff7b7b; --high: #ff8f80; --med: #f0b35b; --low: #a7b3c2; --info: #8fb3e6;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 16px; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
+a { color: var(--accent); }
+code, kbd, pre { font-family: Consolas, "Cascadia Mono", "SFMono-Regular", Menlo, monospace; font-size: .88em; }
+code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+kbd { background: var(--surface); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: .05em .4em; white-space: nowrap; }
+pre { background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
+nav.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 22px 18px 40px 22px; border-right: 1px solid var(--border); }
+nav.toc .brand { font-weight: 700; font-size: 1.05rem; margin-bottom: 2px; }
+nav.toc .ver { color: var(--muted); font-size: .82rem; margin-bottom: 16px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+nav.toc li { margin: 1px 0; }
+nav.toc a { display: block; padding: 4px 8px; border-radius: 5px; text-decoration: none; color: var(--text); font-size: .9rem; }
+nav.toc a:hover { background: var(--surface-2); }
+nav.toc a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.theme-btn { margin-top: 18px; font: inherit; font-size: .82rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+main { padding: 28px 40px 80px; min-width: 0; }
+.doc { max-width: 900px; }
+header.hero { margin-bottom: 28px; }
+header.hero h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 8px; }
+header.hero p.lead { font-size: 1.12rem; color: var(--muted); margin: 0 0 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+section { margin-top: 44px; }
+h2 { font-size: 1.5rem; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.12rem; margin: 26px 0 8px; }
+p, ul, ol { margin: 0 0 12px; }
+li { margin: 3px 0; }
+figure { margin: 18px 0 22px; }
+figure a.shot { display: block; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); background: var(--surface); }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { font-size: .88rem; color: var(--muted); margin-top: 8px; }
+.callout { border: 1px solid var(--note-border); background: var(--note-bg); border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+.callout.warn { border-color: var(--warn-border); background: var(--warn-bg); }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+.table-wrap { overflow-x: auto; margin: 10px 0 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.nowrap { white-space: nowrap; }
+.sev { font-weight: 600; white-space: nowrap; }
+.sev.critical { color: var(--crit); } .sev.high { color: var(--high); } .sev.medium { color: var(--med); } .sev.low { color: var(--low); } .sev.info { color: var(--info); }
+.steps { counter-reset: step; list-style: none; padding: 0; }
+.steps > li { position: relative; padding-left: 40px; margin: 10px 0; }
+.steps > li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--surface); font-weight: 700; font-size: .85rem; display: flex; align-items: center; justify-content: center; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.card h4 { margin: 0 0 4px; font-size: .98rem; }
+.card p { margin: 0; color: var(--muted); font-size: .9rem; }
+footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 14px; }
+.toc-mobile { display: none; }
+@media (max-width: 900px) {
+  .layout { display: block; }
+  nav.toc { display: none; }
+  .toc-mobile { display: block; margin: 0 0 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; }
+  .toc-mobile summary { cursor: pointer; font-weight: 600; }
+  .toc-mobile ol { padding-left: 20px; margin: 8px 0 4px; }
+  main { padding: 20px 16px 60px; }
+  header.hero h1 { font-size: 1.7rem; }
+}
+@media print { nav.toc, .toc-mobile, .theme-btn { display: none; } .layout { display: block; } main { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <div class="brand">IIS Log Analyzer</div>
+  <div class="ver">Manual for version 1.1.1</div>
+  <ol id="toc-list"></ol>
+  <button class="theme-btn" id="themeBtn" type="button">Toggle light / dark</button>
+</nav>
+<main>
+<div class="doc">
+
+<header class="hero">
+  <h1>IIS Log Analyzer</h1>
+  <p class="lead">Offline forensic analysis of Microsoft IIS W3C Extended logs, from a single HTML Application that runs on any Windows 10 or 11 workstation with nothing to install.</p>
+  <div class="chips"><span class="chip">Version 1.1.1</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
+</header>
+
+<details class="toc-mobile"><summary>Contents</summary><ol id="toc-mobile-list"></ol></details>
+
+<section id="overview">
+<h2>What it does</h2>
+<p>IIS Log Analyzer is built for investigators who receive web server logs from an incident: a Velociraptor collection, a copied <code>LogFiles</code> folder or a single log. It reads the logs once, builds a compact index of the whole corpus, runs 41 detection rules mapped to MITRE ATT&amp;CK, and lets you drill from a finding down to the original log line in the evidence file.</p>
+<div class="grid2">
+  <div class="card"><h4>Index first, rows on demand</h4><p>Tens of millions of rows are summarised into per-day, per-client, per-path and per-user-agent aggregates. You then load only the slice you need into the grid.</p></div>
+  <div class="card"><h4>Two scan engines, one result</h4><p>A compiled C# engine scans about 250,000 rows per second. The built-in JavaScript engine needs nothing but the HTA. Both produce identical indexes and findings.</p></div>
+  <div class="card"><h4>Forensically careful</h4><p>Evidence is opened read-only and hashed; every action, filter and export goes to an audit log; exports carry SHA-256 sidecars.</p></div>
+  <div class="card"><h4>Attacker data stays inert</h4><p>Log fields are rendered only as text, CSV formula prefixes are neutralised and keys such as <code>__proto__</code> are ordinary values.</p></div>
+</div>
+<figure>
+  <a class="shot" href="images/overview.png"><img src="images/overview.png" alt="Overview view of the demo case: tiles for files, time span, requests, client IPs, findings, restarts, gaps and malformed rows; daily request charts; corpus facts" width="1600" height="947"></a>
+  <figcaption>The Overview of the synthetic demo case: 42 days, 89,883 requests, 35 findings. All screenshots in this manual use generated demo data with documentation IP ranges.</figcaption>
+</figure>
+</section>
+
+<section id="install">
+<h2>Requirements and installation</h2>
+<ul>
+  <li><strong>Windows 10 or 11.</strong> The app runs in <code>mshta.exe</code>, which uses the IE11 engine that ships with Windows.</li>
+  <li><strong>Optional, for the fast engine:</strong> Windows PowerShell 5.1 and .NET Framework 4.x, both present on every supported Windows version.</li>
+  <li><strong>Optional:</strong> Microsoft Log Parser 2.2 for free-form SQL. The tool never downloads or installs it.</li>
+</ul>
+<p>There is nothing to install. Use either form of the application:</p>
+<div class="table-wrap"><table>
+<tr><th>Form</th><th>What to copy</th><th>When to use</th></tr>
+<tr><td><code>dist\IISLogAnalyzer.hta</code></td><td>One file (about 600 KB) containing all scripts, styles, rules, lists and the fast-engine source</td><td>Copying to an analysis workstation</td></tr>
+<tr><td>Repository folder</td><td><code>IISLogAnalyzer.hta</code> with <code>lib\</code>, <code>rules\</code>, <code>lists\</code>, <code>config\</code> and <code>engine\</code></td><td>Editing rules or lists, development</td></tr>
+</table></div>
+<div class="callout warn">
+<p><strong>Files from another machine are blocked.</strong> Unblock the HTA (and the folder contents) before the first start: right-click &rarr; Properties &rarr; Unblock, or in PowerShell <code>Get-ChildItem -Recurse | Unblock-File</code>.</p>
+<p>AppLocker, WDAC or Defender attack-surface-reduction rules may block <code>mshta.exe</code>. The tool cannot work around such a policy; request an exception for the analysis workstation.</p>
+</div>
+</section>
+
+<section id="start">
+<h2>Starting the application</h2>
+<p>Double-click <code>IISLogAnalyzer.hta</code>, or start it from a command line:</p>
+<pre><code>mshta.exe "C:\Tools\IIS Log Analyzer\IISLogAnalyzer.hta" "E:\Evidence\LogFiles\W3SVC1"</code></pre>
+<ul>
+  <li>An evidence path given as the first argument is offered for opening.</li>
+  <li>Double-clicking an <code>.hta</code> usually starts the 32-bit <code>SysWOW64\mshta.exe</code>. The app detects this and relaunches itself in the 64-bit host, which allows larger row loads. Add <code>/no64</code> to stay in 32-bit. The toolbar shows the host bitness.</li>
+  <li>Text size follows the Windows display scaling. Use <strong>A&minus;</strong> and <strong>A+</strong> in the toolbar, <kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd> or <kbd>Ctrl</kbd>+mouse wheel to adjust it, and click the percentage or press <kbd>Ctrl</kbd>+<kbd>0</kbd> to reset. The choice is remembered. <code>/zoom:1.25</code> sets it for one start.</li>
+</ul>
+</section>
+
+<section id="quickstart">
+<h2>Quick start</h2>
+<ol class="steps">
+  <li><strong>Open or create a case.</strong> On <em>Case &amp; evidence</em>, enter a case ID and choose <em>Open / create</em>. The case workspace is created under the workspace root (default <code>%USERPROFILE%\Documents\IIS Log Analyzer Cases</code>). Fill in examiner, evidence ID and the display time zone.</li>
+  <li><strong>Open the evidence.</strong> Choose <em>Open evidence&hellip;</em> and pick a <code>LogFiles</code> folder, a <code>W3SVCn</code> site folder or a single <code>.log</code> file. Sites are discovered automatically.</li>
+  <li><strong>Scan.</strong> Choose <em>Scan&hellip;</em>, keep all files selected and start. The fast engine is used when available. The index is saved in the case and reused next time.</li>
+  <li><strong>Review.</strong> Read the <em>Overview</em>, then work through <em>Findings</em> by severity. Record a disposition for each.</li>
+  <li><strong>Load rows and investigate.</strong> From a finding choose <em>Load evidence rows</em>, or use <em>Load rows&hellip;</em> with a date range and pre-filter. Filter, pivot, read the raw lines, tag and take notes.</li>
+  <li><strong>Export and report.</strong> Export what you need and produce the HTML report. Everything is hashed and audited.</li>
+</ol>
+</section>
+
+<section id="ui">
+<h2>The window</h2>
+<div class="table-wrap"><table>
+<tr><th>Area</th><th>Contents</th></tr>
+<tr><td>Toolbar</td><td><em>Open evidence&hellip;</em>, <em>Scan&hellip;</em>, <em>Load rows&hellip;</em>, <em>Export&hellip;</em>, <em>Report</em>; the case ID, display time zone and host bitness; text size controls.</td></tr>
+<tr><td>Navigation</td><td>Case &amp; evidence, Overview, Findings (with count), Rows (grid, with loaded count), Top-N, Timeline, Client IPs, URI stems, Sessions, Integrity, IOCs, Log Parser, Tags &amp; notes, Settings, Help. <kbd>Alt</kbd>+<kbd>1</kbd>&hellip;<kbd>9</kbd> jump to the first nine.</td></tr>
+<tr><td>Status bar</td><td>Site, files and size; rows indexed; findings; rows loaded and their memory estimate; current grid count; malformed rows; allow-listed IPs.</td></tr>
+</table></div>
+</section>
+
+<section id="cases">
+<h2>Cases and evidence</h2>
+<h3>Case workspace</h3>
+<p>Every case has its own workspace, <code>&lt;workspace root&gt;\&lt;CaseID&gt;\IIS-Log-Analyzer\</code>:</p>
+<pre><code>case.json   case details, display time zone, tags, notes, bookmarks, dispositions, presets, columns, IOCs
+audit.log   JSON Lines audit trail
+index\      cached scan indexes
+exports\    CSV, Timeline Explorer CSV, JSONL, raw bundles, Log Parser results, case bundle ZIP (+ .sha256)
+reports\    self-contained HTML reports (+ .sha256)
+tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
+<p>The workspace may never be inside the evidence folder; the tool refuses that configuration so nothing is written next to the evidence. Switching to another case clears all evidence, results and loaded rows of the previous case.</p>
+<h3>Evidence sources</h3>
+<ul>
+  <li><strong>Folders and files.</strong> A <code>LogFiles</code> folder (all sites), a site folder such as <code>W3SVC1</code>, or one <code>.log</code> file. Discovery searches three folder levels and groups files by site.</li>
+  <li><strong>Velociraptor collections.</strong> Collections are recognised automatically: original paths (<code>C:\inetpub\...</code>) are shown next to the <code>C%3A</code> paths on disk, file sizes and SHA-256 values from <code>uploads.json</code> and <code>results\*.json</code> are compared with the evidence, and <code>applicationHost.config</code> from the collection supplies site names and bindings.</li>
+  <li><strong>Several sites.</strong> The Case view lists every discovered site; click one to switch. Each site has its own index.</li>
+</ul>
+</section>
+
+<section id="scan">
+<h2>Scanning and the index</h2>
+<p>A scan reads every selected file once and builds the index: totals, per-day and per-hour counts, per-client, per-path, per-user-agent and per-user aggregates, first-seen times, restarts, gaps, rule hits and the findings. Rows themselves are not kept, so a 16.7 GB corpus produces an index of about 150 MB.</p>
+<h3>Scan dialog</h3>
+<ul>
+  <li><strong>Files:</strong> all files, a filename date range, or a filename glob.</li>
+  <li><strong>Engine:</strong> fast or built-in (see below).</li>
+  <li><strong>Hash files during the scan:</strong> computes SHA-256 of every evidence file in the background.</li>
+</ul>
+<h3>Engines</h3>
+<div class="table-wrap"><table>
+<tr><th>Engine</th><th>How it runs</th><th>Speed</th></tr>
+<tr><td>Fast (default when available)</td><td><code>engine\IISScanEngine.cs</code>, compiled on first use by Windows PowerShell <code>Add-Type</code>, cached in <code>%LOCALAPPDATA%\IISLogAnalyzer\engine</code>, run hidden out of process</td><td>About 250,000 rows/s</td></tr>
+<tr><td>Built-in</td><td>JavaScript inside the HTA window</td><td>About 57,000 rows/s</td></tr>
+</table></div>
+<p>The app hands the fast engine its own rules, lists, regular expressions, parser tables and time-zone table, and both engines finish through the same post-processing, so their results are identical value for value. If the fast engine cannot start (for example because PowerShell is blocked by policy), the app offers to rerun with the built-in engine. A watchdog reports an engine process that ends without finishing, never starts, stalls, or ignores a cancel.</p>
+<h3>Cancel and continue</h3>
+<p>A scan can be cancelled at any time. The partial index is kept and shown, together with the detection state at the cancel point. <em>Continue scan</em> resumes with the built-in engine and produces exactly the index and findings of an uninterrupted scan. A scan can only be continued with the rules, enabled rules and business hours it started with; otherwise rescan from the start.</p>
+<h3>Cached index</h3>
+<p>The index is stored in the case and loaded automatically when the site is opened again, if every file still has the size and modification time recorded at scan time. If any file changed, the cached index is not loaded and the changed files are reported: investigate why evidence changed before rescanning. Indexes from an older index format are rebuilt.</p>
+</section>
+
+<section id="overview-view">
+<h2>Overview</h2>
+<p>The Overview summarises the site: files and size, time span (UTC), requests and lines, client IPs and how many are non-internal, findings by severity, restarts, gaps and missing daily files, malformed rows and encoding problems. Charts show requests per day by status class and external versus loopback versus rule-hit rows; drag across a chart to load that range, or click a bar to load one day.</p>
+<p>The <em>Server and corpus facts</em> panel lists the IIS software, field layouts, server addresses and ports, log rollover, the learned heartbeat (a monitoring request repeated from loopback), the code page in use, hash status, collector manifest and index caps.</p>
+</section>
+
+<section id="findings">
+<h2>Findings</h2>
+<figure>
+  <a class="shot" href="images/findings.png"><img src="images/findings.png" alt="Findings view with filters for severity, category, rule and disposition; a table of findings; and the detail of a critical web shell finding" width="1600" height="947"></a>
+  <figcaption>Findings sorted by severity. The selected critical finding is a new executable path under an upload folder, first requested from the internet 38 days after the corpus starts.</figcaption>
+</figure>
+<p>Each finding names a rule, an entity (a client, a path, a file, a gap or a group of rows), a count, first and last time, a detail sentence, ATT&amp;CK techniques, a description and known false positives. Filter by severity, category, rule, disposition or free text.</p>
+<ul>
+  <li><strong>Actions:</strong> <em>Load evidence rows</em> loads exactly the rows behind the finding; <em>IP profile</em> and <em>URI profile</em> open the entity; <em>Raw context of first occurrence</em> shows the lines around the first hit, read directly from the evidence file.</li>
+  <li><strong>Dispositions:</strong> Needs review, True positive, False positive, Benign true positive, each with an examiner note. They are saved in the case and appear in the report.</li>
+  <li><strong>Grouping:</strong> when a rule matches more than 25 clients, files or paths, the 25 strongest are separate findings and the rest are folded into one summary finding.</li>
+  <li><strong>Re-evaluate aggregate rules</strong> rebuilds findings from the index after rule settings change. Row-rule changes need a rescan; the app warns when a row rule was enabled after the scan.</li>
+</ul>
+</section>
+
+<section id="load">
+<h2>Loading rows</h2>
+<p><em>Load rows&hellip;</em> streams the selected files again and keeps the rows that match a date range and an optional pre-filter (same syntax as the quick filter, for example <code>class:public method:POST</code>). Presets cover common slices. Loading stops at the row cap (2,000,000 rows in the 64-bit host by default); nothing is sampled, and a capped load says so.</p>
+<ul>
+  <li><strong>Keep raw lines</strong> stores the original text of each row for display, copying and raw exports.</li>
+  <li>Files up to 32 MB are buffered while they are read; larger files are streamed so memory stays bounded.</li>
+  <li>A file that cannot be opened is never skipped silently: the load is marked incomplete, the files are listed on screen, and every export from that load records them.</li>
+  <li>To retrieve every hit of a rule beyond the pointers kept in the index, load with the pre-filter <code>rule:R-EXP-003</code>.</li>
+</ul>
+</section>
+
+<section id="grid">
+<h2>Rows grid</h2>
+<figure>
+  <a class="shot" href="images/grid.png"><img src="images/grid.png" alt="Rows grid filtered to public POST requests, sorted by time taken, with a detail pane showing time in UTC and local time, client, request, rule hits, tags and the raw line" width="1600" height="947"></a>
+  <figcaption>The grid filtered with <code>class:public method:POST</code> and sorted by time taken. The detail pane shows the selected row in UTC and in the case time zone, its rule hits, tag buttons and the raw line.</figcaption>
+</figure>
+<ul>
+  <li><strong>Quick filter</strong> (<kbd>Ctrl</kbd>+<kbd>F</kbd>): type terms and press <kbd>Enter</kbd>. Terms appear as removable chips. <em>Invert</em> negates the whole filter; <em>Presets</em> stores filters in the case.</li>
+  <li><strong>Sorting and columns:</strong> click a header to sort; <em>Columns&hellip;</em> chooses and orders columns (saved per case).</li>
+  <li><strong>Selection:</strong> arrows, <kbd>PgUp</kbd>/<kbd>PgDn</kbd>, <kbd>Ctrl</kbd>+<kbd>Home</kbd>/<kbd>End</kbd>; <kbd>Shift</kbd>/<kbd>Ctrl</kbd>+click for multiple rows; <kbd>Ctrl</kbd>+<kbd>C</kbd> copies rows as TSV and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> copies raw lines.</li>
+  <li><strong>Pivots (right-click):</strong> filter to or exclude a client, status or path; the same user agent; &plusmn;5 minutes around the row; IP or URI profile; raw context (&plusmn;50 lines); tag the row or IP as Attacker; add a note; copy.</li>
+  <li><strong>Raw context</strong> (<kbd>Enter</kbd> or double-click) reads the lines around the row straight from the evidence file.</li>
+  <li><strong>Tags and bookmarks:</strong> tag rows, IPs and paths (Attacker, Suspicious, Benign, Review, Reported), bookmark rows and add notes. All are stored in the case.</li>
+</ul>
+</section>
+
+<section id="filters">
+<h2>Filter syntax</h2>
+<p>Terms are combined with AND. Prefix any term with <code>-</code> to negate it. Bare words must all appear in the path or query. Values with spaces go in double quotes.</p>
+<div class="table-wrap"><table>
+<tr><th>Example</th><th>Meaning</th></tr>
+<tr><td><code>cip:203.0.113.45</code> <code>cip:10.0.0.0/8</code> <code>cip:/^203\./</code></td><td>Client IP (also matches the effective IP from X-Forwarded-For), CIDR, regular expression</td></tr>
+<tr><td><code>class:public</code></td><td>IP class: public, rfc1918, internal, loopback, linklocal, cgnat, bogon, allowlisted</td></tr>
+<tr><td><code>sip:10.0.0.5 port:443</code></td><td>Server IP and port</td></tr>
+<tr><td><code>method:POST</code> <code>method:invalid</code></td><td>Method, or any non-standard method</td></tr>
+<tr><td><code>status:4xx</code> <code>status:404.8</code> <code>status:500-599</code></td><td>Status class, status.substatus, range</td></tr>
+<tr><td><code>stem:login</code> <code>stem:*.aspx</code> <code>stem:=/exact</code> <code>stem:^/portal</code> <code>stem:/regex/</code></td><td>URI path contains, glob, exact, starts with, regular expression</td></tr>
+<tr><td><code>ext:.aspx,.php</code> <code>dir:/uploads/</code> <code>exec:yes</code> <code>static:no</code></td><td>Extension, directory prefix, executable handler, static asset</td></tr>
+<tr><td><code>new:2026-03-01</code></td><td>Path first seen on or after a date</td></tr>
+<tr><td><code>query:cmd=</code> <code>qlen:&gt;500</code> <code>decerr:yes</code></td><td>Query contains, query length, URL-decoding errors</td></tr>
+<tr><td><code>ua:python</code> <code>family:scanner</code> <code>ua:empty</code></td><td>User agent contains, user-agent family, empty user agent</td></tr>
+<tr><td><code>taken:&gt;30000</code> <code>bytes:&gt;1000000</code></td><td>time-taken in milliseconds, sc-bytes</td></tr>
+<tr><td><code>after:2026-03-09</code> <code>before:"2026-03-10 12:00"</code> <code>hour:0-6</code> <code>dow:0,6</code></td><td>Time in the case time zone (append <code>Z</code> for UTC), local hour, weekday (0 = Sunday)</td></tr>
+<tr><td><code>rule:any</code> <code>rule:R-EXP-*</code> <code>sev:high,critical</code></td><td>Any rule hit, rule ID or wildcard, hit severity</td></tr>
+<tr><td><code>tag:Attacker</code> <code>tag:none</code> <code>ioc:any</code></td><td>Tags and IOC matches</td></tr>
+<tr><td><code>file:u_ex2603*</code> <code>text:"phrase"</code></td><td>Source file name, raw-line substring</td></tr>
+<tr><td><code>-status:304</code></td><td>Negation of any term</td></tr>
+</table></div>
+</section>
+
+<section id="analysis">
+<h2>Analysis views</h2>
+<h3>Client IPs and IP profile</h3>
+<figure>
+  <a class="shot" href="images/ipProfile.png"><img src="images/ipProfile.png" alt="IP profile of 203.0.113.45: class, request count, active period, status mix, rule hits, requests per day, top paths, rule hits table, user agents and window maxima" width="1600" height="947"></a>
+  <figcaption>The profile of the demo attacker: 1,086 requests over two days, 99.9% successful, 1,326 rule hits across seven rules, and the peak of 421 login POSTs in one window.</figcaption>
+</figure>
+<p><em>Client IPs</em> lists every client in the index with class, requests, status mix, first and last time and rule hits. The IP profile shows activity per day, top paths, rule hits, user agents and window maxima (distinct paths in 5 minutes, login POSTs, 401 responses, user agents per day). From here you can load all of the client's rows, filter the grid or run an optional reverse-DNS lookup, which is the only network action in the tool and asks for confirmation first.</p>
+<h3>URI stems and URI profile</h3>
+<p>Every path with requests, clients, status mix and first-seen time. The profile shows who requested a path and when it first appeared; a new executable path in an upload directory is the classic web-shell signal.</p>
+<h3>Top-N</h3>
+<p>Ranks a dimension by a measure, over the whole index or over the loaded rows. Over the index the dimensions are client IP, URI path, user agent, status, method, extension, server IP and port, user-agent family, user name and rule; loaded rows add effective IP, IP class, directory, query, local hour, local weekday, UTC day and source file. Measures are rows, distinct IPs, distinct paths, 4xx, 5xx, POST, average and maximum time taken, first and last seen, and rule-hit rows.</p>
+<h3>Timeline</h3>
+<figure>
+  <a class="shot" href="images/timeline.png"><img src="images/timeline.png" alt="Timeline of requests over time with four series: all rows, public clients, 5xx responses and rows with rule hits" width="1600" height="947"></a>
+  <figcaption>The Timeline with four series, each defined by a quick filter. The scanning burst on 9 March dominates.</figcaption>
+</figure>
+<p>Up to four series, each defined by a quick filter, over the whole corpus or the loaded rows, with automatic or fixed buckets. Restarts and gaps are shaded. Drag across the chart to filter the grid or load that range.</p>
+<h3>Sessions</h3>
+<p>Groups loaded rows by client and user agent, split by idle time (30 minutes by default), with duration, request count, status mix, executable POSTs and rule hits.</p>
+</section>
+
+<section id="integrity">
+<h2>Log integrity</h2>
+<figure>
+  <a class="shot" href="images/integrity.png"><img src="images/integrity.png" alt="Log integrity view with tiles for hashes, manifest, restarts, gaps, truncated tails, backwards time, malformed rows and line endings; a restarts chart; the gap table and the file table" width="1600" height="947"></a>
+  <figcaption>Integrity checks for the demo logs: one restart, a 5.6-hour gap on 12 March, no truncation, no backwards time, no malformed rows.</figcaption>
+</figure>
+<p>Logs are evidence about themselves. The Integrity view shows SHA-256 status and collector-manifest comparison, restarts (extra <code>#Fields</code> blocks), gaps and missing daily files, files ending without a newline, timestamps that go backwards, malformed rows and line-ending anomalies, followed by a per-file table. <em>Compute SHA-256</em> hashes every file in a hidden PowerShell process; re-hashing reports any file whose hash changed since the last run.</p>
+<p>Dates and times are validated strictly. An impossible date such as <code>2026-02-31</code>, a 60th second or extra characters after the time make a row malformed instead of being shifted to a valid timestamp.</p>
+</section>
+
+<section id="iocs">
+<h2>IOCs, tags and notes</h2>
+<ul>
+  <li><strong>IOCs</strong> accept <code>type,value,note</code> lines or bare values: IPs, CIDRs, paths starting with <code>/</code>, <code>re:</code> regular expressions and free text. Matches are shown per IOC, are available as <code>ioc:any</code> in filters and can be exported. A Hawk-style IOC file can be imported.</li>
+  <li><strong>Tags, notes and bookmarks</strong> are listed together on <em>Tags &amp; notes</em>, with links back to the rows, clients and paths they belong to.</li>
+</ul>
+</section>
+
+<section id="logparser">
+<h2>Log Parser 2.2</h2>
+<p>If Microsoft Log Parser 2.2 is installed (default <code>Program Files (x86)\Log Parser 2.2</code>, or a path set in Settings), the <em>Log Parser</em> view runs SQL over the current site. <code>{files}</code> in a query expands to the evidence files. Templates cover the top clients, hourly volume, status breakdown, executable paths answered to non-internal clients, all requests from one client, 5xx errors and the slowest requests. The query is passed through a query file, never on a command line; results appear in a grid, can be exported with a hash, and every query is audited.</p>
+<div class="callout"><p>The bridge has been tested with a stand-in for <code>LogParser.exe</code>, not with the real program.</p></div>
+</section>
+
+<section id="export">
+<h2>Exports and the report</h2>
+<div class="table-wrap"><table>
+<tr><th>Export</th><th>Content</th></tr>
+<tr><td>Grid rows &rarr; CSV (visible or all columns)</td><td>The filtered rows</td></tr>
+<tr><td>Grid rows &rarr; Timeline Explorer CSV</td><td>UTC and local timestamps, client, method, status, path, decoded query and user agent, time-taken, rule hits, tags, source file, line, raw line</td></tr>
+<tr><td>Grid rows &rarr; JSONL</td><td>One JSON object per row, decoded and raw values</td></tr>
+<tr><td>Selected rows &rarr; raw line bundle</td><td>The original lines byte-for-byte as stored in the evidence, grouped by file with line numbers</td></tr>
+<tr><td>Findings &rarr; CSV / JSON</td><td>All findings with dispositions</td></tr>
+<tr><td>Integrity, Client IPs, URI stems, Sessions, Top-N &rarr; CSV</td><td>The corresponding tables</td></tr>
+<tr><td>Log Parser result, IOC hits &rarr; CSV</td><td>The last query result, IOC matches</td></tr>
+<tr><td>Case bundle &rarr; ZIP</td><td>The case workspace without temporary files</td></tr>
+</table></div>
+<p>Every export and report gets a <code>.sha256</code> sidecar and an audit entry with its hash. Row exports also record whether the load was capped, cancelled or incomplete. CSV cells that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> are prefixed with an apostrophe so spreadsheet programs do not evaluate them.</p>
+<p><em>Report</em> writes a self-contained HTML report in nine parts: case information, evidence summary, methodology and limitations, key findings, attacker infrastructure, a timeline of key events, findings in detail with dispositions and example rows, log integrity observations, and an appendix that reproduces the audit log. All times are printed in UTC, with local times labelled.</p>
+</section>
+
+<section id="timezones">
+<h2>Time zones</h2>
+<p>All times are parsed and stored in UTC; the index never depends on a time zone. The display time zone of a case can be any Windows time zone (with its historical daylight-saving rules), UTC, or a fixed offset. Local times in the grid, local-time filters (<code>after:</code>, <code>before:</code>, <code>hour:</code>, <code>dow:</code>), business hours for rule R-AUTH-004, Top-N by hour or day, Timeline Explorer exports and the report all use the offset in force at each instant, so daylight-saving changes are handled. Changing the display zone never requires a rescan.</p>
+<p>The conversion matches Windows exactly: a self-test against the Win32 API found no differences in 58,884 checks across all 141 zones from 1990 to 2035.</p>
+</section>
+
+<section id="rules">
+<h2>Detection rules</h2>
+<p><code>rules\default-rules.json</code> defines 41 rules with severity, ATT&amp;CK techniques, description, false positives and tunable parameters. <em>Row</em> rules evaluate each request; <em>aggregate</em> rules evaluate the index; <em>file</em> and <em>corpus</em> rules evaluate log integrity. Rules can be switched on or off per case under Settings.</p>
+<div class="table-wrap"><table>
+<tr><th>ID</th><th>Severity</th><th>Scope</th><th>Name</th><th>ATT&amp;CK</th></tr>
+<tr><td class="nowrap">R-SCAN-001</td><td class="sev medium">medium</td><td>aggregate</td><td>High 404 volume from single public client</td><td>T1595.003</td></tr>
+<tr><td class="nowrap">R-SCAN-002</td><td class="sev low">low</td><td>row</td><td>Sensitive file or backup probing</td><td>T1595.003</td></tr>
+<tr><td class="nowrap">R-SCAN-003</td><td class="sev low">low</td><td>row</td><td>Scanner or tooling user agent</td><td>T1595.002</td></tr>
+<tr><td class="nowrap">R-SCAN-004</td><td class="sev medium">medium</td><td>row</td><td>Invalid HTTP method or 405/501</td><td>T1595.002</td></tr>
+<tr><td class="nowrap">R-SCAN-005</td><td class="sev low">low</td><td>row</td><td>IIS request filtering block</td><td>T1595.003</td></tr>
+<tr><td class="nowrap">R-SCAN-006</td><td class="sev low">low</td><td>row</td><td>Directory listing or handler denial</td><td>T1595.003</td></tr>
+<tr><td class="nowrap">R-SCAN-007</td><td class="sev medium">medium</td><td>aggregate</td><td>Rapid path enumeration</td><td>T1595.003</td></tr>
+<tr><td class="nowrap">R-SCAN-008</td><td class="sev low">low</td><td>row</td><td>PHP/Xdebug information probe</td><td>T1592</td></tr>
+<tr><td class="nowrap">R-SCAN-009</td><td class="sev info">info</td><td>aggregate</td><td>Generic mass-scanner profile (PHP probes on .NET server)</td><td>T1595.002</td></tr>
+<tr><td class="nowrap">R-EXP-001</td><td class="sev high">high</td><td>row</td><td>PHP-CGI argument injection (CVE-2024-4577 / CVE-2012-1823)</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-EXP-002</td><td class="sev high">high</td><td>row</td><td>Path traversal</td><td>T1190, T1083</td></tr>
+<tr><td class="nowrap">R-EXP-003</td><td class="sev high">high</td><td>row</td><td>SQL injection tokens</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-EXP-004</td><td class="sev high">high</td><td>row</td><td>Command or code injection tokens</td><td>T1190, T1059</td></tr>
+<tr><td class="nowrap">R-EXP-005</td><td class="sev medium">medium</td><td>row</td><td>.NET / IIS specific probing</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-EXP-006</td><td class="sev medium">medium</td><td>row</td><td>Known product exploit path</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-EXP-007</td><td class="sev high">high</td><td>row</td><td>Server error following exploit attempt</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-EXP-008</td><td class="sev medium">medium</td><td>row</td><td>Oversized or high-entropy request</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-EXP-009</td><td class="sev low">low</td><td>row</td><td>Malformed / aborted request from public client</td><td>T1190</td></tr>
+<tr><td class="nowrap">R-WS-001</td><td class="sev critical">critical</td><td>aggregate</td><td>New executable path reached from the internet</td><td>T1505.003</td></tr>
+<tr><td class="nowrap">R-WS-002</td><td class="sev high">high</td><td>aggregate</td><td>Executable in upload or static directory</td><td>T1505.003, T1105</td></tr>
+<tr><td class="nowrap">R-WS-003</td><td class="sev critical">critical</td><td>aggregate</td><td>Interactive web shell fingerprint</td><td>T1505.003</td></tr>
+<tr><td class="nowrap">R-WS-004</td><td class="sev high">high</td><td>row</td><td>Web shell names, parameters or client user agents</td><td>T1505.003</td></tr>
+<tr><td class="nowrap">R-WS-005</td><td class="sev high">high</td><td>row</td><td>Static extension handled like a script</td><td>T1505.003</td></tr>
+<tr><td class="nowrap">R-WS-006</td><td class="sev medium">medium</td><td>aggregate</td><td>Automation profile: only executable handlers, no static assets</td><td>T1505.003, T1071.001</td></tr>
+<tr><td class="nowrap">R-WS-007</td><td class="sev critical">critical</td><td>aggregate</td><td>Exploit then new executable path from same client</td><td>T1190, T1505.003</td></tr>
+<tr><td class="nowrap">R-AUTH-001</td><td class="sev medium">medium</td><td>aggregate</td><td>Login endpoint brute force</td><td>T1110</td></tr>
+<tr><td class="nowrap">R-AUTH-002</td><td class="sev medium">medium</td><td>aggregate</td><td>Repeated 401 responses</td><td>T1110</td></tr>
+<tr><td class="nowrap">R-AUTH-003</td><td class="sev medium">medium</td><td>row</td><td>Authenticated account activity of interest</td><td>T1078</td></tr>
+<tr><td class="nowrap">R-AUTH-004</td><td class="sev low">low</td><td>aggregate</td><td>Internal off-hours use of application handlers</td><td>T1078</td></tr>
+<tr><td class="nowrap">R-AUTH-005</td><td class="sev low">low</td><td>aggregate</td><td>User-agent rotation</td><td>T1110.004</td></tr>
+<tr><td class="nowrap">R-EXF-001</td><td class="sev medium">medium</td><td>row</td><td>Archive / database / document downloaded by public client</td><td>T1005, T1041</td></tr>
+<tr><td class="nowrap">R-EXF-002</td><td class="sev medium">medium</td><td>row</td><td>Large or long-running response to public client</td><td>T1041</td></tr>
+<tr><td class="nowrap">R-EXF-003</td><td class="sev low">low</td><td>row</td><td>Download / attachment / export endpoint use by public client</td><td>T1119, T1041</td></tr>
+<tr><td class="nowrap">R-EXF-004</td><td class="sev high">high</td><td>aggregate</td><td>Document ID enumeration</td><td>T1119</td></tr>
+<tr><td class="nowrap">R-INF-001</td><td class="sev high">high</td><td>corpus</td><td>Logging gap</td><td>T1070.004, T1562.002</td></tr>
+<tr><td class="nowrap">R-INF-002</td><td class="sev low">low</td><td>file</td><td>Worker process restarts</td><td>T1489</td></tr>
+<tr><td class="nowrap">R-INF-003</td><td class="sev high">high</td><td>file</td><td>Timestamp anomalies</td><td>T1070.006</td></tr>
+<tr><td class="nowrap">R-INF-004</td><td class="sev medium">medium</td><td>file</td><td>Undersized or truncated log file</td><td>T1070.004</td></tr>
+<tr><td class="nowrap">R-INF-005</td><td class="sev info">info</td><td>corpus</td><td>Logging configuration change</td><td>T1562.002</td></tr>
+<tr><td class="nowrap">R-INF-006</td><td class="sev medium">medium</td><td>corpus</td><td>Heartbeat absent</td><td>T1562.002</td></tr>
+<tr><td class="nowrap">R-INF-007</td><td class="sev low">low</td><td>file</td><td>Malformed or undecodable content</td><td>T1070</td></tr>
+</table></div>
+<h3>Custom rules</h3>
+<p>Add row rules to the JSON with a <code>match</code> block (see the disabled example <code>C-EXAMPLE-001</code>). Supported keys: <code>method</code>, <code>stem</code>, <code>query</code>, <code>ua</code>, <code>user</code>, <code>raw</code> (each <code>{contains|glob|regex|equals}</code>), <code>status</code> (<code>404</code>, <code>4xx</code>, <code>404.8</code>), <code>ipClass</code>, <code>uaFamily</code>, <code>ext</code>, <code>cip</code> (CIDRs), <code>minTaken</code> and <code>exec</code>.</p>
+<h3>Lists</h3>
+<p><code>lists\*.txt</code> hold the vocabularies the rules use: sensitive paths, scanner user agents, executable and static extensions, login and download endpoints, known exploit paths, upload directories, web shell names and parameters. One entry per line; <code>re:</code> starts a regular expression, <code>*</code> and <code>?</code> make a glob, anything else is a substring. Restart the app after editing.</p>
+<h3>Networks</h3>
+<ul>
+  <li><strong>Internal CIDRs</strong> (Settings) are classed <code>internal</code> in addition to RFC 1918 ranges.</li>
+  <li><strong>Allow-listed IPs</strong> (a file, one address per line) are classed <code>allowlisted</code>: their rows stay visible but public and internal rules do not fire for them.</li>
+  <li><strong>Documentation ranges</strong> (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32) are classed as bogons. For training and demo data only, Settings can treat them as public.</li>
+</ul>
+</section>
+
+<section id="settings">
+<h2>Settings</h2>
+<p>Defaults ship in <code>config\settings.json</code>; your changes are saved to <code>%APPDATA%\IISLogAnalyzer\settings.json</code>. Rule switches are saved per case.</p>
+<div class="table-wrap"><table>
+<tr><th>Setting</th><th>Default</th><th>Purpose</th></tr>
+<tr><td>Case workspace root</td><td><code>%USERPROFILE%\Documents\IIS Log Analyzer Cases</code></td><td>Where case workspaces are created</td></tr>
+<tr><td>Examiner</td><td>(empty)</td><td>Default examiner for new cases, recorded in the audit log</td></tr>
+<tr><td>Default display time zone</td><td>UTC</td><td>Time zone for new cases</td></tr>
+<tr><td>Business hours</td><td>08:00&ndash;19:00, Monday&ndash;Friday</td><td>Off-hours detection (R-AUTH-004), in the case time zone</td></tr>
+<tr><td>Max loaded rows</td><td>2,000,000 (64-bit), 400,000 (32-bit)</td><td>Row cap for loads</td></tr>
+<tr><td>Keep raw lines</td><td>On (64-bit)</td><td>Keep original line text with loaded rows</td></tr>
+<tr><td>Stream files larger than (MB)</td><td>32</td><td>Larger files are read incrementally</td></tr>
+<tr><td>Index caps (IPs, paths, user agents)</td><td>250,000 / 500,000 / 100,000</td><td>Bound the index; rare entries are evicted, entries with evidence value never are</td></tr>
+<tr><td>Rule-hit pointers kept per rule</td><td>20,000</td><td>Rows per rule that findings can load directly</td></tr>
+<tr><td>Session idle minutes</td><td>30</td><td>Session split</td></tr>
+<tr><td>Hash files during scan</td><td>On</td><td>SHA-256 of every evidence file</td></tr>
+<tr><td>Internal CIDRs, allow-list file, IOC file</td><td>none</td><td>Network classification and IOC import</td></tr>
+<tr><td>Log Parser 2.2 path</td><td>detected</td><td>Optional SQL bridge</td></tr>
+</table></div>
+</section>
+
+<section id="forensics">
+<h2>Forensic handling</h2>
+<ul>
+  <li>Evidence is opened read-only by both engines, and the case workspace cannot be placed inside the evidence folder. Reading can update NTFS last-access times where that is enabled, so work from a copy or a mounted image as usual.</li>
+  <li>SHA-256 values are computed out of process and compared with Velociraptor records where present; re-hashing reports changed files.</li>
+  <li><code>audit.log</code> records case actions, evidence opened, scans (with engine, rule fingerprint, disabled rules and time zone), hashes, loads, every grid filter, tags, dispositions, Log Parser queries, exports and reports with their hashes. The report reproduces it.</li>
+  <li>The rule-set fingerprint covers the rule text and which rules are enabled, so an index or report identifies exactly the rules that produced it.</li>
+  <li>The only network action is the optional reverse-DNS lookup of one IP, behind an operational-security warning, and it is audited.</li>
+  <li>Text is read as Windows-1252, which maps every byte losslessly; lines that are valid UTF-8 (the IIS default) are shown decoded. Raw exports always contain the original bytes.</li>
+</ul>
+</section>
+
+<section id="performance">
+<h2>Performance</h2>
+<p>Measured on a production corpus of 4,817 daily files (16.7 GB, 67.4 million rows) in the 64-bit host:</p>
+<div class="table-wrap"><table>
+<tr><th>Operation</th><th>Result</th></tr>
+<tr><td>Full scan, fast engine</td><td>4.5 minutes</td></tr>
+<tr><td>Full scan, built-in engine</td><td>19.8 minutes, peak 3.1 GB memory</td></tr>
+<tr><td>Reopen with cached index (148 MB)</td><td>5.1 s to load the index, 11.9 s including discovery</td></tr>
+<tr><td>Load one 146 MB file (637,000 rows, raw kept)</td><td>7.8 s</td></tr>
+<tr><td>Filter 637,000 rows by client</td><td>57 ms</td></tr>
+<tr><td>Sort 590,000 rows by time taken</td><td>0.36 s</td></tr>
+<tr><td>SHA-256 of all 4,817 files</td><td>33 s</td></tr>
+</table></div>
+</section>
+
+<section id="troubleshooting">
+<h2>Troubleshooting</h2>
+<div class="table-wrap"><table>
+<tr><th>Symptom</th><th>What to do</th></tr>
+<tr><td>The HTA does not open, or opens and closes</td><td>Unblock the file; check AppLocker, WDAC and Defender ASR policy for <code>mshta.exe</code>. Startup errors are written to <code>%TEMP%\iisla-startup-error.log</code>.</td></tr>
+<tr><td>"Fast engine failed" or "did not start"</td><td>PowerShell may be blocked. Accept the offer to use the built-in engine, or choose it in the scan dialog.</td></tr>
+<tr><td>"Cached index is from an older version"</td><td>Rescan; the index format changed.</td></tr>
+<tr><td>"Evidence changed since indexing"</td><td>One or more files differ from the scan. Find out why before rescanning; the files are listed in the audit log.</td></tr>
+<tr><td>"Cannot continue this scan"</td><td>Rules, enabled rules or business hours changed after the cancel. Rescan from the start.</td></tr>
+<tr><td>"Load incomplete"</td><td>Some files could not be read. Check access, locks or missing files; exports from the load record the omission.</td></tr>
+<tr><td>"Row cap reached"</td><td>Narrow the date range, file set or pre-filter, or raise the cap in Settings (64-bit host).</td></tr>
+<tr><td>Text too small or too large</td><td>Use A&minus; / A+ or <kbd>Ctrl</kbd>+mouse wheel.</td></tr>
+<tr><td>Non-English paths look wrong</td><td>Lines that are not valid UTF-8 are shown as Windows-1252; the raw bundle still contains the original bytes.</td></tr>
+</table></div>
+</section>
+
+<section id="keyboard">
+<h2>Keyboard shortcuts</h2>
+<div class="table-wrap"><table>
+<tr><th>Keys</th><th>Action</th></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd> / <kbd>Ctrl</kbd>+<kbd>0</kbd></td><td>Larger, smaller, reset text size</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Quick filter</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Load rows</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Export</td></tr>
+<tr><td><kbd>Alt</kbd>+<kbd>1</kbd>&hellip;<kbd>9</kbd></td><td>Views</td></tr>
+<tr><td>Arrows, <kbd>PgUp</kbd>, <kbd>PgDn</kbd>, <kbd>Ctrl</kbd>+<kbd>Home</kbd>/<kbd>End</kbd></td><td>Move in grids</td></tr>
+<tr><td><kbd>Shift</kbd>/<kbd>Ctrl</kbd>+click</td><td>Select several rows</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd></td><td>Copy rows as TSV / copy raw lines</td></tr>
+<tr><td><kbd>Enter</kbd> or double-click</td><td>Raw context from the evidence file</td></tr>
+<tr><td>Right-click</td><td>Pivot menu</td></tr>
+</table></div>
+<p><kbd>F5</kbd> is disabled because reloading would discard the loaded rows.</p>
+</section>
+
+<section id="demo">
+<h2>Demo data and testing</h2>
+<p>The repository contains no real evidence. To try the tool, generate the synthetic demo logs used for the screenshots in this manual and open <code>demo\LogFiles\W3SVC1</code>:</p>
+<pre><code>node tools\make-demo-logs.js</code></pre>
+<p>The demo covers 42 days of traffic for a fictitious portal with an intrusion: automated scanning, a login brute force, a web shell upload and its use, document enumeration and a large download, after-hours internal activity, a server restart and a logging gap. Its attackers use documentation IP ranges, so turn on <em>treat documentation ranges as public</em> in Settings before scanning it. <code>tools\capture-screens.ps1</code> regenerates the screenshots.</p>
+<p>The <code>test</code> folder holds the regression tools: a Node.js harness that runs the scanner headless, an engine comparison, a cancel-and-resume comparison, a time-zone oracle, a self-test runner for the HTA itself, and hostile fixtures for markup injection, field reordering, malformed rows, encodings and impossible dates. See the README for the commands.</p>
+</section>
+
+<section id="limits">
+<h2>Known limitations</h2>
+<ul>
+  <li>An HTA cannot hold a whole multi-gigabyte corpus in memory: the index plus a pre-filtered load is the designed workflow. Loading rows always uses the built-in engine.</li>
+  <li>Per-client tracking keeps the first 32 distinct paths and 8 user agents of each client; further ones are counted as overflow. Load the client's rows for the complete picture.</li>
+  <li>Rule-hit pointers are kept for the first 20,000 hits per rule (raw text for the first 200); load with <code>rule:&lt;id&gt;</code> to retrieve all.</li>
+  <li>Window-based rules (rapid enumeration, login brute force, 401 bursts, document-ID enumeration) use tumbling windows, not sliding ones.</li>
+  <li>IIS binary (<code>.ibl</code>), ODBC, NCSA and IIS native log formats are not parsed; Apache and nginx are out of scope.</li>
+  <li>The Log Parser bridge has not been tested against the real <code>LogParser.exe</code>.</li>
+</ul>
+</section>
+
+<footer>IIS Log Analyzer 1.1.1 &middot; manual updated 2026-10-03. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
+</div>
+</main>
+</div>
+<script>
+(function () {
+  var secs = document.querySelectorAll('main section[id]'), list = document.getElementById('toc-list'), mlist = document.getElementById('toc-mobile-list'), links = [];
+  for (var i = 0; i < secs.length; i++) {
+    var h = secs[i].querySelector('h2'); if (!h) { continue; }
+    var li = document.createElement('li'), a = document.createElement('a');
+    a.href = '#' + secs[i].id; a.textContent = h.textContent; li.appendChild(a); list.appendChild(li); links.push(a);
+    var li2 = document.createElement('li'), a2 = document.createElement('a'); a2.href = a.href; a2.textContent = h.textContent; li2.appendChild(a2); mlist.appendChild(li2);
+  }
+  if ('IntersectionObserver' in window) {
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) { return; }
+        links.forEach(function (l) { l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id); });
+      });
+    }, { rootMargin: '0px 0px -70% 0px' });
+    for (var j = 0; j < secs.length; j++) { obs.observe(secs[j]); }
+  }
+  var root = document.documentElement, btn = document.getElementById('themeBtn'), saved = null;
+  try { saved = localStorage.getItem('iisla-manual-theme'); } catch (e) { }
+  if (saved === 'light' || saved === 'dark') { root.setAttribute('data-theme', saved); }
+  btn.addEventListener('click', function () {
+    var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('iisla-manual-theme', next); } catch (e) { }
+  });
+}());
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Authentication endpoints (glob or substring over lower-cased stem)
+*login*
+*logon*
+*signin*
+*sign-in*
+*/auth/*
+*authenticate*
+/owa/auth.owa
+/wp-login.php
+/administrator/index.php
+/api/*/login
+/user/login
+/account/login

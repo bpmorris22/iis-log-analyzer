@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta charset="utf-8">
+<title>IIS Log Analyzer</title>
+<HTA:APPLICATION
+    ID="IISLA" APPLICATIONNAME="IIS Log Analyzer"
+    BORDER="thick" BORDERSTYLE="normal" CAPTION="yes"
+    MAXIMIZEBUTTON="yes" MINIMIZEBUTTON="yes" SYSMENU="yes"
+    SHOWINTASKBAR="yes" SINGLEINSTANCE="no" SCROLL="no"
+    SELECTION="yes" CONTEXTMENU="yes" NAVIGABLE="no"
+    WINDOWSTATE="maximize" />
+<!-- IIS Log Analyzer: offline analysis of IIS W3C Extended logs for DFIR.
+     Runs in mshta.exe (IE11 document mode). No network resources are referenced. -->
+<link rel="stylesheet" id="appcss" href="lib/app.css">
+</head>
+<body>
+<div id="app"><div style="padding:30px;font:14px Segoe UI">Loading IIS Log Analyzer&hellip;</div></div>
+<div id="toasts"></div>
+<script>
+  /* Early error hook: script load/parse failures are written to %TEMP%\iisla-startup-error.log and shown on screen. */
+  window.__iislaEarlyError = function (msg, url, line) {
+    try {
+      var sh = new ActiveXObject('WScript.Shell'), p = sh.ExpandEnvironmentStrings('%TEMP%') + String.fromCharCode(92) + 'iisla-startup-error.log';
+      var ts = new ActiveXObject('Scripting.FileSystemObject').OpenTextFile(p, 8, true, 0);
+      ts.WriteLine(String(new Date()) + ' documentMode=' + document.documentMode + ' ' + msg + ' @ ' + url + ':' + line); ts.Close();
+    } catch (e) { }
+    var d = document.getElementById('app');
+    if (d) { d.textContent = 'Startup error: ' + msg + ' @ ' + url + ':' + line; d.style.color = '#c53030'; d.style.padding = '20px'; }
+    return true;
+  };
+  window.onerror = window.__iislaEarlyError;
+</script>
+<script src="lib/util.js"></script>
+<script src="lib/tz.js"></script>
+<script src="lib/io.js"></script>
+<script src="lib/parser.js"></script>
+<script src="lib/rules.js"></script>
+<script src="lib/scan.js"></script>
+<script src="lib/engine.js"></script>
+<script src="lib/store.js"></script>
+<script src="lib/filter.js"></script>
+<script src="lib/ui.js"></script>
+<script src="lib/case.js"></script>
+<script src="lib/enrich.js"></script>
+<script src="lib/export.js"></script>
+<script src="lib/logparser.js"></script>
+<script src="lib/app.js"></script>
+<script src="lib/views.js"></script>
+<script>
+  window.onload = function () {
+    try { IISLA.app.boot(); } catch (e) {
+      window.__iislaEarlyError('boot: ' + (e.message || e) + (e.stack ? ' ' + e.stack : ''), 'boot', 0);
+      var d = document.getElementById('app');
+      d.textContent = 'Startup failed: ' + (e.message || e) + (e.stack ? '\n' + e.stack : '');
+      d.style.whiteSpace = 'pre-wrap'; d.style.padding = '20px'; d.style.color = '#c53030';
+    }
+  };
+</script>
+</body>
+</html>

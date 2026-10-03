@@ -1,0 +1,17 @@
+# Subset that escalates R-EXF-001 to high
+.bak
+.mdf
+.ldf
+.sql
+.mdb
+.accdb
+.pst
+.ost
+.config
+.dmp
+.vhd
+.vhdx
+.kdbx
+.pfx
+.p12
+.key

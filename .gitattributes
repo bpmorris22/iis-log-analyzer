@@ -1,0 +1,9 @@
+# Text files: normalised line endings
+* text=auto
+
+# Byte-exact files: test fixtures exercise specific bytes and line endings, and the single-file build
+# must match its .sha256 sidecar
+test/fixtures/** -text
+*.log -text
+dist/** -text
+*.png binary

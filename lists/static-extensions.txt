@@ -1,0 +1,26 @@
+# Static asset extensions (treated as browser noise)
+.js
+.css
+.png
+.jpg
+.jpeg
+.gif
+.ico
+.svg
+.woff
+.woff2
+.ttf
+.eot
+.otf
+.map
+.htm
+.html
+.txt
+.xml
+.json
+.bmp
+.webp
+.mp4
+.mp3
+.cur
+.swf

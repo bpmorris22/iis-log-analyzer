@@ -1,0 +1,18 @@
+# Backup / editor artefact suffixes probed by scanners (R-SCAN-002, only when 404)
+.bak
+.old
+.orig
+.swp
+.save
+.tmp
+.sql
+.zip
+.tar.gz
+.tgz
+.7z
+.rar
+~
+.backup
+.copy
+.dist
+.inc

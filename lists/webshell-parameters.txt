@@ -1,0 +1,3 @@
+# Query parameters typical of web shell interaction (regex over lower-cased decoded query)
+re:(?:^|&)(?:cmd|exec|command|execute|shell|func|z0|z1|z2|pass|pwd|ant|payload)=
+re:(?:^|&)action=(?:cmd|exec|shell|upload|download)

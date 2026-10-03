@@ -1,0 +1,8 @@
+# .NET / IIS probe paths (R-EXP-005)
+re:\.rem$
+re:\.soap$
+/remoteapplicationmetadata.rem
+/elmah.axd
+/trace.axd
+telerik.web.ui.webresource.axd
+/aspnet_client/

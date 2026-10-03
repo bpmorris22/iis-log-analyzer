@@ -1,0 +1,9 @@
+# Case material and local working files are never published
+IIS-Log-Analyzer-SPEC.md
+review/
+
+# Generated locally
+demo/
+test/snapshots/
+test/autotest-*.json
+*.tmp

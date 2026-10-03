@@ -1,0 +1,13 @@
+# Extensions that should never behave like scripts (R-WS-005)
+.jpg
+.jpeg
+.gif
+.png
+.txt
+.css
+.ico
+.svg
+.xml
+.config
+.log
+.bmp

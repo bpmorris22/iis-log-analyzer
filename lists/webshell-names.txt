@@ -1,0 +1,4 @@
+# Web shell basenames (regex over lower-cased basename)
+re:^(?:cmd|cmdasp|shell|c99|r57|wso|b374k|caidao|chopper|aspxspy|aspxshell|spy|ma|x|a|z|1|2|t|test1|tmp|up|upload1|login2|asp\.?net|xx|devil|hack|bypass|r00t|sh3ll|webshell|antsword|godzilla|behinder|reGeorg|tunnel|proxy|socks)\.(?:aspx|ashx|asmx|asp|php|jsp|jspx|cer|asa)$
+re:^(?:help|error|default|index)[0-9]+\.(?:aspx|ashx|asp|php|jsp)$
+re:^[0-9a-f]{8,}\.(?:aspx|ashx|asp|php|jsp)$

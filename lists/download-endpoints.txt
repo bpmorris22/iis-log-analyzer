@@ -1,0 +1,9 @@
+# Download / attachment / export endpoints (substring over lower-cased stem)
+download
+attachment
+export
+getfile
+fileget
+reportviewer
+report
+print

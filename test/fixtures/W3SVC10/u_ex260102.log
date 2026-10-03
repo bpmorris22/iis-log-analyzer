@@ -1,0 +1,12 @@
+Ôªø#Software: Microsoft Internet Information Services 10.0
+#Version: 1.0
+#Date: 2026-01-02 00:00:00
+#Fields: date time s-ip cs-method cs-uri-stem cs-uri-query s-port cs-username c-ip cs(User-Agent) cs(Referer) sc-status sc-substatus sc-win32-status time-taken
+2026-01-02 00:00:01 10.0.0.5 GET /caf√©.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 15
+2026-01-02 00:00:02 10.0.0.5 GET /files/src/Áî®Âç∞.jpg - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 15
+2026-01-02 00:00:03 10.0.0.5 GET /latin1-È.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 404 0 2 3
+2026-02-31 00:00:04 10.0.0.5 GET /bad-date.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 1
+2026-01-02 00:00:05Z 10.0.0.5 GET /time-junk.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 1
+2026-01-02 00:00:06 10.0.0.5 GET /lf-only.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 1
+2026-01-02 00:00:07 10.0.0.5 GET /undef-Åçèêù.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 1
+2026-01-02 00:00:08 10.0.0.5 GET /tail.aspx - 443 - 203.0.113.7 Mozilla/5.0 - 200 0 0 1

@@ -1,0 +1,53 @@
+# Scanner / exploitation framework / scripting library user agents.
+# Matched against the user agent with '+' replaced by spaces. Substring unless re: or glob.
+nikto
+sqlmap
+nuclei
+zgrab
+masscan
+nmap
+python-requests
+python-urllib
+go-http-client
+curl/
+wget/
+libwww-perl
+dirbuster
+gobuster
+feroxbuster
+ffuf
+fuzz faster
+wpscan
+httpx
+nessus
+qualys
+acunetix
+openvas
+burp
+zap/
+owasp
+arachni
+w3af
+whatweb
+jaeles
+xray
+dirsearch
+hydra
+medusa
+censys
+shodan
+expanse
+internet-measurement
+leakix
+zoomeye
+netcraft
+bitsight
+paloaltonetworks
+l9explore
+l9tcpid
+odin
+fasthttp
+re:^mozilla/5\.0 \(compatible\)$
+re:^mozilla/5\.0$
+re:^mozilla/4\.0$
+re:^-$

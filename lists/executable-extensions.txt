@@ -1,0 +1,26 @@
+# Server-side executable extensions (web shell candidates)
+.aspx
+.ashx
+.asmx
+.asp
+.axd
+.svc
+.cshtml
+.vbhtml
+.soap
+.rem
+.php
+.php3
+.php4
+.php5
+.phtml
+.jsp
+.jspx
+.cfm
+.cgi
+.pl
+.py
+.shtml
+.stm
+.cer
+.asa
