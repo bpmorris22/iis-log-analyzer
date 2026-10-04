@@ -984,7 +984,7 @@ namespace IISLA
 
     // ---------------------------------------------------------------- rules (R.Evaluator)
     public sealed class Ctx { public Row r; public StemInfo si; public QueryInfo qi; public UaInfo ui; public string cls, ip; public bool pub, newUser; }
-    public sealed class RowRule { public string id, sev; public bool exploit; public Func<Ctx, string> fn; }
+    public sealed class RowRule { public string id, sev; public bool exploit, grade; public Func<Ctx, string> fn; }
     public sealed class ExpWin { public double ts; public HashSet<string> stems = new HashSet<string>(StringComparer.Ordinal); }
 
     public sealed class Evaluator
@@ -1017,7 +1017,8 @@ namespace IISLA
                 object mv;
                 if (fn == null && r.TryGetValue("match", out mv) && mv is Dictionary<string, object>) fn = CompileMatch((Dictionary<string, object>)mv);
                 if (fn == null) continue;
-                list.Add(new RowRule { id = id, sev = (string)r["severity"], fn = fn, exploit = ExploitRules.Contains(id) });
+                object gb; bool grade = p.TryGetValue("gradeByStatus", out gb) && gb is bool && (bool)gb;
+                list.Add(new RowRule { id = id, sev = (string)r["severity"], fn = fn, exploit = ExploitRules.Contains(id), grade = grade });
             }
         }
         const string T = "\u0001true"; // marker: rule matched with its default severity
@@ -1173,7 +1174,7 @@ namespace IISLA
             foreach (var rule in list)
             {
                 string res = rule.fn(c);
-                if (res != null) { hits.Add(rule.id); hitSev.Add(res == T ? rule.sev : res); n++; if (rule.exploit) anyExp = true; }
+                if (res != null) { string sv = res == T ? rule.sev : res; if (rule.grade) sv = GradeSev(sv, r.Status); hits.Add(rule.id); hitSev.Add(sv); n++; if (rule.exploit) anyExp = true; }
             }
             if (anyExp)
             {
@@ -1185,6 +1186,16 @@ namespace IISLA
         }
         static readonly Dictionary<string, int> Sev = new Dictionary<string, int> { { "critical", 5 }, { "high", 4 }, { "medium", 3 }, { "low", 2 }, { "info", 1 } };
         public static string MaxSev(string a, string b) { int x, y; Sev.TryGetValue(a ?? "", out x); Sev.TryGetValue(b ?? "", out y); return x >= y ? a : b; }
+        // Outcome grading, mirrors rules.js R.gradeSev: 2xx/5xx keep the severity, 3xx drops one level, 4xx and others drop to low.
+        static readonly string[] SevOrder = { "info", "low", "medium", "high", "critical" };
+        public static string GradeSev(string sev, double status)
+        {
+            if (!(status >= 0)) return sev;
+            double c = Math.Floor(status / 100); int i = Array.IndexOf(SevOrder, sev);
+            if (c == 2 || c == 5) return sev;
+            if (c == 3) return i > 1 ? SevOrder[i - 1] : sev;
+            return i > 1 ? "low" : sev;
+        }
     }
 
     // ---------------------------------------------------------------- index records
@@ -1197,7 +1208,7 @@ namespace IISLA
     public sealed class StemRec { public double n, first, last, fFile, fLine, ipOv, pubN, post, ok, okPub, s4, s5; public int ipN; public string fIp, raw; public bool exec, upDir; public OMap<double> ips = new OMap<double>(), sts = new OMap<double>(); }
     public sealed class UaRec { public double n, first, last, ipOv; public int ipN; public string fam; public OMap<double> ips = new OMap<double>(); }
     public sealed class UserRec { public double n, first, last, fFile, fLine, pub; public int ipN; public OMap<double> ips = new OMap<double>(); }
-    public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; }
+    public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
     public sealed class EnumRec { public int n; public HashSet<string> q = new HashSet<string>(StringComparer.Ordinal); }
     public sealed class Win
     {
@@ -1575,6 +1586,7 @@ namespace IISLA
                 if (!ruleHits.TryGet(id, out h)) { h = new RuleHit { sev = ev.hitSev[j], first = t, last = t }; ruleHits[id] = h; }
                 h.n++; if (t > h.last) h.last = t; if (t < h.first) h.first = t;
                 h.sev = Evaluator.MaxSev(h.sev, ev.hitSev[j]);
+                h.sx[scl >= 2 && scl <= 5 ? (int)scl - 2 : 4]++; // response mix: 2xx, 3xx, 4xx, 5xx, other
                 if (h.kept.Count < retention) h.kept.Add(new object[] { (double)r.fileId, (double)r.lineNo, t, ip, h.kept.Count < KEEP_RAW ? (r.raw.Length > 1500 ? r.raw.Substring(0, 1500) : r.raw) : "" });
                 if (h.ips.TryGet(ip, out cur)) h.ips[ip] = cur + 1; else if (h.ipN < 1000) { h.ips[ip] = 1; h.ipN++; }
                 if (h.stems.TryGet(si.key, out cur)) h.stems[si.key] = cur + 1; else if (h.stN < 1000) { h.stems[si.key] = 1; h.stN++; }
@@ -1762,6 +1774,7 @@ namespace IISLA
                     var h = ruleHits[k]; j.Key(k).ObjStart().KNum("n", h.n).KStr("sev", h.sev).KNum("first", h.first).KNum("last", h.last);
                     j.Key("kept").ArrStart(); foreach (var e in h.kept) { j.ArrStart().Num((double)e[0]).Num((double)e[1]).Num((double)e[2]).Str((string)e[3]).Str((string)e[4]).EndArr(); } j.EndArr();
                     MapNum(j, "ips", h.ips); j.KNum("ipN", h.ipN); MapNum(j, "stems", h.stems); j.KNum("stN", h.stN);
+                    j.Key("sx").ArrStart(); foreach (var x in h.sx) j.Num(x); j.EndArr();
                     j.EndObj();
                 }
                 j.EndObj();

@@ -226,7 +226,7 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
 <div id="app"><div style="padding:30px;font:14px Segoe UI">Loading IIS Log Analyzer&hellip;</div></div>
 <div id="toasts"></div>
 <script type="text/plain" data-res="rules/default-rules.json">{
-  "version": "1.0.0",
+  "version": "1.1.0",
   "notes": "Built-in rules have logic in lib/rules.js keyed by id; their thresholds come from 'params' here. Any rule with a 'match' block and an id not handled by lib/rules.js is compiled as a custom row rule (see README).",
   "rules": [
     { "id": "R-SCAN-001", "name": "High 404 volume from single public client", "category": "Reconnaissance", "severity": "medium", "scope": "aggregate", "entity": "ip",
@@ -267,24 +267,24 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
       "falsePositives": "None; informational for noise reduction." },
 
     { "id": "R-EXP-001", "name": "PHP-CGI argument injection (CVE-2024-4577 / CVE-2012-1823)", "category": "Exploitation", "severity": "high", "scope": "row", "entity": "row",
-      "attack": ["T1190"], "enabled": true, "params": {},
-      "description": "Query contains soft-hyphen or dash '-d' PHP ini overrides such as allow_url_include / auto_prepend_file=php://input.",
+      "attack": ["T1190"], "enabled": true, "params": { "gradeByStatus": true },
+      "description": "Query contains soft-hyphen or dash '-d' PHP ini overrides such as allow_url_include / auto_prepend_file=php://input. Severity follows the response (gradeByStatus): as listed when the server answered 2xx or 5xx, one level lower for 3xx, low for 4xx and other failed requests.",
       "falsePositives": "None realistic." },
     { "id": "R-EXP-002", "name": "Path traversal", "category": "Exploitation", "severity": "high", "scope": "row", "entity": "row",
-      "attack": ["T1190", "T1083"], "enabled": true, "params": {},
-      "description": "Dot-dot sequences or their encoded forms in the stem or query.",
+      "attack": ["T1190", "T1083"], "enabled": true, "params": { "gradeByStatus": true },
+      "description": "Dot-dot sequences or their encoded forms in the stem or query. Severity follows the response (gradeByStatus): as listed when the server answered 2xx or 5xx, one level lower for 3xx, low for 4xx and other failed requests.",
       "falsePositives": "Rare: applications passing relative paths in parameters." },
     { "id": "R-EXP-003", "name": "SQL injection tokens", "category": "Exploitation", "severity": "high", "scope": "row", "entity": "row",
-      "attack": ["T1190"], "enabled": true, "params": { "includeMedium": true },
-      "description": "Decoded query contains high-confidence SQL injection tokens (UNION SELECT, WAITFOR DELAY, xp_cmdshell, information_schema) or two or more medium-confidence tokens.",
+      "attack": ["T1190"], "enabled": true, "params": { "gradeByStatus": true, "includeMedium": true },
+      "description": "Decoded query contains high-confidence SQL injection tokens (UNION SELECT, WAITFOR DELAY, xp_cmdshell, information_schema) or two or more medium-confidence tokens. Severity follows the response (gradeByStatus): as listed when the server answered 2xx or 5xx, one level lower for 3xx, low for 4xx and other failed requests.",
       "falsePositives": "Search pages where users type SQL-like text; reporting tools passing SQL fragments." },
     { "id": "R-EXP-004", "name": "Command or code injection tokens", "category": "Exploitation", "severity": "high", "scope": "row", "entity": "row",
-      "attack": ["T1190", "T1059"], "enabled": true, "params": {},
-      "description": "Stem or decoded query contains shell commands, PowerShell, certutil, JNDI lookups, script tags or command chaining.",
+      "attack": ["T1190", "T1059"], "enabled": true, "params": { "gradeByStatus": true },
+      "description": "Stem or decoded query contains shell commands, PowerShell, certutil, JNDI lookups, script tags or command chaining. Severity follows the response (gradeByStatus): as listed when the server answered 2xx or 5xx, one level lower for 3xx, low for 4xx and other failed requests.",
       "falsePositives": "Help-desk or ticketing systems where users paste commands." },
     { "id": "R-EXP-005", "name": ".NET / IIS specific probing", "category": "Exploitation", "severity": "medium", "scope": "row", "entity": "row",
-      "attack": ["T1190"], "enabled": true, "params": {},
-      "description": ".NET Remoting endpoints (*.rem, *.soap), Telerik RAU, ELMAH/trace.axd, WebResource/ScriptResource padding-oracle (500 with d=), and ?wsdl/?disco on *.asmx/*.svc returning 500.",
+      "attack": ["T1190"], "enabled": true, "params": { "gradeByStatus": true },
+      "description": ".NET Remoting endpoints (*.rem, *.soap), Telerik RAU, ELMAH/trace.axd, WebResource/ScriptResource padding-oracle (500 with d=), and ?wsdl/?disco on *.asmx/*.svc returning 500. Severity follows the response (gradeByStatus): as listed when the server answered 2xx or 5xx, one level lower for 3xx, low for 4xx and other failed requests.",
       "falsePositives": "Legitimate SOAP clients fetching WSDL (status 200 is not flagged)." },
     { "id": "R-EXP-006", "name": "Known product exploit path", "category": "Exploitation", "severity": "medium", "scope": "row", "entity": "row",
       "attack": ["T1190"], "enabled": true, "params": { "escalateStatuses": [200, 500] },
@@ -316,8 +316,8 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
       "description": "Executable path used only by one or two public clients, mostly with POST and mostly 200.",
       "falsePositives": "Single remote user of a niche page; API integrations from a partner." },
     { "id": "R-WS-004", "name": "Web shell names, parameters or client user agents", "category": "Persistence", "severity": "high", "scope": "row", "entity": "row",
-      "attack": ["T1505.003"], "enabled": true, "params": {},
-      "description": "Basename matches common web shell names, query contains shell parameters (cmd=, z0=, action=cmd...), or the user agent matches AntSword/Godzilla/Behinder/Weevely.",
+      "attack": ["T1505.003"], "enabled": true, "params": { "gradeByStatus": true },
+      "description": "Basename matches common web shell names, query contains shell parameters (cmd=, z0=, action=cmd...), or the user agent matches AntSword/Godzilla/Behinder/Weevely. Severity follows the response (gradeByStatus): as listed when the server answered 2xx or 5xx, one level lower for 3xx, low for 4xx and other failed requests.",
       "falsePositives": "Pages named cmd.aspx or test.aspx in legacy applications." },
     { "id": "R-WS-005", "name": "Static extension handled like a script", "category": "Persistence", "severity": "high", "scope": "row", "entity": "row",
       "attack": ["T1505.003"], "enabled": true, "params": {},
@@ -1423,7 +1423,7 @@ namespace IISLA
 
     // ---------------------------------------------------------------- rules (R.Evaluator)
     public sealed class Ctx { public Row r; public StemInfo si; public QueryInfo qi; public UaInfo ui; public string cls, ip; public bool pub, newUser; }
-    public sealed class RowRule { public string id, sev; public bool exploit; public Func<Ctx, string> fn; }
+    public sealed class RowRule { public string id, sev; public bool exploit, grade; public Func<Ctx, string> fn; }
     public sealed class ExpWin { public double ts; public HashSet<string> stems = new HashSet<string>(StringComparer.Ordinal); }
 
     public sealed class Evaluator
@@ -1456,7 +1456,8 @@ namespace IISLA
                 object mv;
                 if (fn == null && r.TryGetValue("match", out mv) && mv is Dictionary<string, object>) fn = CompileMatch((Dictionary<string, object>)mv);
                 if (fn == null) continue;
-                list.Add(new RowRule { id = id, sev = (string)r["severity"], fn = fn, exploit = ExploitRules.Contains(id) });
+                object gb; bool grade = p.TryGetValue("gradeByStatus", out gb) && gb is bool && (bool)gb;
+                list.Add(new RowRule { id = id, sev = (string)r["severity"], fn = fn, exploit = ExploitRules.Contains(id), grade = grade });
             }
         }
         const string T = "\u0001true"; // marker: rule matched with its default severity
@@ -1612,7 +1613,7 @@ namespace IISLA
             foreach (var rule in list)
             {
                 string res = rule.fn(c);
-                if (res != null) { hits.Add(rule.id); hitSev.Add(res == T ? rule.sev : res); n++; if (rule.exploit) anyExp = true; }
+                if (res != null) { string sv = res == T ? rule.sev : res; if (rule.grade) sv = GradeSev(sv, r.Status); hits.Add(rule.id); hitSev.Add(sv); n++; if (rule.exploit) anyExp = true; }
             }
             if (anyExp)
             {
@@ -1624,6 +1625,16 @@ namespace IISLA
         }
         static readonly Dictionary<string, int> Sev = new Dictionary<string, int> { { "critical", 5 }, { "high", 4 }, { "medium", 3 }, { "low", 2 }, { "info", 1 } };
         public static string MaxSev(string a, string b) { int x, y; Sev.TryGetValue(a ?? "", out x); Sev.TryGetValue(b ?? "", out y); return x >= y ? a : b; }
+        // Outcome grading, mirrors rules.js R.gradeSev: 2xx/5xx keep the severity, 3xx drops one level, 4xx and others drop to low.
+        static readonly string[] SevOrder = { "info", "low", "medium", "high", "critical" };
+        public static string GradeSev(string sev, double status)
+        {
+            if (!(status >= 0)) return sev;
+            double c = Math.Floor(status / 100); int i = Array.IndexOf(SevOrder, sev);
+            if (c == 2 || c == 5) return sev;
+            if (c == 3) return i > 1 ? SevOrder[i - 1] : sev;
+            return i > 1 ? "low" : sev;
+        }
     }
 
     // ---------------------------------------------------------------- index records
@@ -1636,7 +1647,7 @@ namespace IISLA
     public sealed class StemRec { public double n, first, last, fFile, fLine, ipOv, pubN, post, ok, okPub, s4, s5; public int ipN; public string fIp, raw; public bool exec, upDir; public OMap<double> ips = new OMap<double>(), sts = new OMap<double>(); }
     public sealed class UaRec { public double n, first, last, ipOv; public int ipN; public string fam; public OMap<double> ips = new OMap<double>(); }
     public sealed class UserRec { public double n, first, last, fFile, fLine, pub; public int ipN; public OMap<double> ips = new OMap<double>(); }
-    public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; }
+    public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
     public sealed class EnumRec { public int n; public HashSet<string> q = new HashSet<string>(StringComparer.Ordinal); }
     public sealed class Win
     {
@@ -2014,6 +2025,7 @@ namespace IISLA
                 if (!ruleHits.TryGet(id, out h)) { h = new RuleHit { sev = ev.hitSev[j], first = t, last = t }; ruleHits[id] = h; }
                 h.n++; if (t > h.last) h.last = t; if (t < h.first) h.first = t;
                 h.sev = Evaluator.MaxSev(h.sev, ev.hitSev[j]);
+                h.sx[scl >= 2 && scl <= 5 ? (int)scl - 2 : 4]++; // response mix: 2xx, 3xx, 4xx, 5xx, other
                 if (h.kept.Count < retention) h.kept.Add(new object[] { (double)r.fileId, (double)r.lineNo, t, ip, h.kept.Count < KEEP_RAW ? (r.raw.Length > 1500 ? r.raw.Substring(0, 1500) : r.raw) : "" });
                 if (h.ips.TryGet(ip, out cur)) h.ips[ip] = cur + 1; else if (h.ipN < 1000) { h.ips[ip] = 1; h.ipN++; }
                 if (h.stems.TryGet(si.key, out cur)) h.stems[si.key] = cur + 1; else if (h.stN < 1000) { h.stems[si.key] = 1; h.stN++; }
@@ -2201,6 +2213,7 @@ namespace IISLA
                     var h = ruleHits[k]; j.Key(k).ObjStart().KNum("n", h.n).KStr("sev", h.sev).KNum("first", h.first).KNum("last", h.last);
                     j.Key("kept").ArrStart(); foreach (var e in h.kept) { j.ArrStart().Num((double)e[0]).Num((double)e[1]).Num((double)e[2]).Str((string)e[3]).Str((string)e[4]).EndArr(); } j.EndArr();
                     MapNum(j, "ips", h.ips); j.KNum("ipN", h.ipN); MapNum(j, "stems", h.stems); j.KNum("stN", h.stN);
+                    j.Key("sx").ArrStart(); foreach (var x in h.sx) j.Num(x); j.EndArr();
                     j.EndObj();
                 }
                 j.EndObj();
@@ -2648,7 +2661,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util = {};
 
-  NS.VERSION = '1.2.0';
+  NS.VERSION = '1.3.0';
   NS.bootWarnings = NS.bootWarnings || [];
   /* Debug trace to %TEMP%\iisla-trace.log (enabled with /trace on the command line or always during autotest). */
   NS.traceOn = false;
@@ -4124,6 +4137,17 @@ var IISLA = IISLA || {};
   R.SEV = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
   R.SEV_NAMES = ['critical', 'high', 'medium', 'low', 'info'];
   R.maxSev = function (a, b) { return (R.SEV[a] || 0) >= (R.SEV[b] || 0) ? a : b; };
+  /* Outcome grading (rules with params.gradeByStatus): a request the server answered 2xx or 5xx keeps the rule's
+   * severity (it reached a handler or broke it); 3xx drops one level; 4xx and anything else drop to low (the attempt
+   * failed, e.g. a scanner asking for /shell.php and getting 404). Status not logged (-1): unchanged. Mirrored in C#. */
+  R.SEV_ORDER = ['info', 'low', 'medium', 'high', 'critical'];
+  R.gradeSev = function (sev, status) {
+    if (!(status >= 0)) { return sev; }
+    var c = Math.floor(status / 100), i = R.SEV_ORDER.indexOf(sev);
+    if (c === 2 || c === 5) { return sev; }
+    if (c === 3) { return i > 1 ? R.SEV_ORDER[i - 1] : sev; }
+    return i > 1 ? 'low' : sev;
+  };
   R.EXPLOIT_RULES = { 'R-EXP-001': 1, 'R-EXP-002': 1, 'R-EXP-003': 1, 'R-EXP-004': 1, 'R-EXP-005': 1, 'R-EXP-006': 1 };
 
   /* Simple FNV-1a 32-bit hash, used to fingerprint the rule set text. */
@@ -4259,6 +4283,7 @@ var IISLA = IISLA || {};
 
   function prepParams(rule) {
     var p = U.extend({}, rule.params || {});
+    p._grade = p.gradeByStatus === true;
     if (rule.id === 'R-SCAN-005' || rule.id === 'R-SCAN-006') { p._sub = setOf(p.substatus); }
     if (rule.id === 'R-EXP-006') { p._esc = setOf(p.escalateStatuses || [200, 500]); }
     if (rule.id === 'R-EXP-007') { p.windowMinutes = p.windowMinutes || 10; }
@@ -4305,7 +4330,7 @@ var IISLA = IISLA || {};
       res = L[i].fn(c, L[i].p, this);
       if (res) {
         this.hits[n] = L[i].id;
-        this.hitSev[n] = typeof res === 'string' ? res : L[i].sev;
+        this.hitSev[n] = L[i].p._grade ? R.gradeSev(typeof res === 'string' ? res : L[i].sev, r.status) : (typeof res === 'string' ? res : L[i].sev);
         n++;
         if (L[i].exploit) { anyExp = true; }
       }
@@ -4318,6 +4343,8 @@ var IISLA = IISLA || {};
     this.n = n;
     return n;
   };
+  /* Graded severities of this row's hits, in the order of hitString(). */
+  R.Evaluator.prototype.hitSevString = function () { return this.n ? this.hitSev.slice(0, this.n).join(',') : ''; };
   R.Evaluator.prototype.hitString = function () {
     return this.n ? this.hits.slice(0, this.n).join(',') : '';
   };
@@ -4351,7 +4378,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util, IO = NS.io, P = NS.parser, R = NS.rules, S = NS.scan = {};
 
-  S.SCHEMA = 6; // 4: ASCII-only JSON; 5: windows-1252 + UTF-8 recovery, DST zones; 6: strict dates, resume state, rule-set fingerprint incl. enabled rules
+  S.SCHEMA = 7; // 7: outcome-graded severities, response mix per rule; 4: ASCII-only JSON; 5: windows-1252 + UTF-8 recovery, DST zones; 6: strict dates, resume state, rule-set fingerprint incl. enabled rules
   S.IP_STEM_CAP = 32;   // distinct paths tracked per client (count continues as overflow)
   S.IP_UA_CAP = 8;      // distinct user agents tracked per client
   S.WIN_PURGE_ROWS = 400000; // purge idle per-client windows this often
@@ -4678,9 +4705,10 @@ var IISLA = IISLA || {};
       for (j = 0; j < nh; j++) {
         id = ev.hits[j];
         h = idx.ruleHits[id];
-        if (!h) { h = idx.ruleHits[id] = { n: 0, sev: ev.hitSev[j], first: t, last: t, kept: [], ips: U.newMap(), ipN: 0, stems: U.newMap(), stN: 0 }; }
+        if (!h) { h = idx.ruleHits[id] = { n: 0, sev: ev.hitSev[j], first: t, last: t, kept: [], ips: U.newMap(), ipN: 0, stems: U.newMap(), stN: 0, sx: [0, 0, 0, 0, 0] }; }
         h.n++; if (t > h.last) { h.last = t; } if (t < h.first) { h.first = t; }
         h.sev = R.maxSev(h.sev, ev.hitSev[j]);
+        h.sx[scl >= 2 && scl <= 5 ? scl - 2 : 4]++; // response mix: 2xx, 3xx, 4xx, 5xx, other
         if (h.kept.length < this.retention) { h.kept.push([r.fileId, r.lineNo, t, U.own(ip), h.kept.length < S.KEEP_RAW ? U.own(r.raw.length > 1500 ? r.raw.substr(0, 1500) : r.raw) : '']); }
         if (h.ips[ip] !== undefined) { h.ips[ip]++; } else if (h.ipN < 1000) { h.ips[ip] = 1; h.ipN++; }
         if (h.stems[si.key] !== undefined) { h.stems[si.key]++; } else if (h.stN < 1000) { h.stems[si.key] = 1; h.stN++; }
@@ -4840,6 +4868,10 @@ var IISLA = IISLA || {};
       f.count = h.n; f.first = h.first; f.last = h.last; f.ips = topKeys(h.ips, 25); f.stems = topKeys(h.stems, 25);
       f.examples = h.kept.slice(0, 20); f.kept = h.kept.length;
       f.detail = U.fmtNum(h.n) + ' matching rows from ' + (h.ipN >= 1000 ? '1000+' : h.ipN) + ' client(s); ' + (h.stN >= 1000 ? '1000+' : h.stN) + ' distinct path(s).';
+      var sx = h.sx || [0, 0, 0, 0, 0], mix = [], SXL = ['2xx', '3xx', '4xx', '5xx', 'other'], q;
+      f.statusMix = {}; for (q = 0; q < 5; q++) { f.statusMix[SXL[q]] = sx[q]; if (sx[q]) { mix.push(U.fmtNum(sx[q]) + ' ' + SXL[q]); } }
+      if (mix.length) { f.detail += ' Responses: ' + mix.join(', ') + '.'; }
+      if (rule.params && rule.params.gradeByStatus === true && h.n && !sx[0] && !sx[3]) { f.detail += ' No request succeeded or caused a server error (no 2xx or 5xx), so the severity is lowered.'; }
       out.push(f);
     }
     // --- per-IP escalations of row rules ---
@@ -5275,8 +5307,8 @@ var IISLA = IISLA || {};
   St.Store = function (maxRows, keepRaw) {
     this.max = maxRows; this.n = 0; this.cap = 0; this.keepRaw = !!keepRaw; this.capped = false; this.failed = []; this.incomplete = false;
     this.t = { ip: new St.StrTable(true), method: new St.StrTable(), stem: new St.StrTable(), query: new St.StrTable(), ua: new St.StrTable(),
-      user: new St.StrTable(), ref: new St.StrTable(), host: new St.StrTable(), hits: new St.StrTable(), reason: new St.StrTable() };
-    this.t.hits.id('');
+      user: new St.StrTable(), ref: new St.StrTable(), host: new St.StrTable(), hits: new St.StrTable(), hsev: new St.StrTable(), reason: new St.StrTable() };
+    this.t.hits.id(''); this.t.hsev.id('');
     this.raw = keepRaw ? [] : null;
     // exact raw export: original line where UTF-8/BOM handling changed it, and non-CRLF terminators (sparse, by row)
     this.rawOrig = keepRaw ? {} : null; this.rawEol = keepRaw ? {} : null;
@@ -5287,7 +5319,7 @@ var IISLA = IISLA || {};
   var NUMCOLS = [['ts', Float64Array], ['file', Int32Array], ['line', Int32Array], ['status', Int16Array], ['sub', Int16Array], ['win32', Float64Array],
     ['taken', Int32Array], ['scb', Float64Array], ['csb', Float64Array], ['port', Int32Array], ['flags', Uint8Array],
     ['sip', Int32Array], ['cip', Int32Array], ['eip', Int32Array], ['method', Int32Array], ['stem', Int32Array], ['query', Int32Array], ['ua', Int32Array],
-    ['user', Int32Array], ['ref', Int32Array], ['host', Int32Array], ['hits', Int32Array]];
+    ['user', Int32Array], ['ref', Int32Array], ['host', Int32Array], ['hits', Int32Array], ['hsev', Int32Array]];
   St.Store.prototype.grow = function (newCap) {
     newCap = Math.min(newCap, this.max);
     if (newCap <= this.cap) { return false; }
@@ -5317,6 +5349,7 @@ var IISLA = IISLA || {};
     id = T.ua.id(r.ua); this.ua[i] = id; if (this.uaInfo[id] === undefined) { this.uaInfo[id] = c.ui; }
     this.user[i] = T.user.id(r.user); this.ref[i] = T.ref.id(r.referer); this.host[i] = T.host.id(r.host);
     this.hits[i] = ev.n ? T.hits.id(ev.hitString()) : 0;
+    this.hsev[i] = ev.n ? T.hsev.id(ev.hitSevString()) : 0; // graded severity per hit (same order as hits)
     var fl = 0;
     if (c.pub) { fl |= F_PUB; } if (c.si.exec) { fl |= F_EXEC; } if (c.si.stat) { fl |= F_STAT; }
     if (c.si.decErr || c.qi.decErr) { fl |= F_DECERR; } if (r.nonAscii) { fl |= F_NONASCII; } if (ev.n) { fl |= F_HITS; }
@@ -5594,6 +5627,7 @@ var IISLA = IISLA || {};
     A.fileId = function () { return s.file[A.i]; };
     A.line = function () { return s.line[A.i]; };
     A.hits = function () { return T.hits.vals[s.hits[A.i]]; };
+    A.hitSevs = function () { return T.hsev.vals[s.hsev[A.i]]; };
     A.port = function () { return s.port[A.i]; };
     A.raw = function () {
       if (s.raw) { return s.raw[A.i]; }
@@ -5624,6 +5658,7 @@ var IISLA = IISLA || {};
     A.fileId = function () { return r.fileId; };
     A.line = function () { return r.lineNo; };
     A.hits = function () { return ev.n ? ev.hitString() : ''; };
+    A.hitSevs = function () { return ev.n ? ev.hitSevString() : ''; };
     A.port = function () { return r.port; };
     A.raw = function () { return r.raw; };
     return A;
@@ -5754,12 +5789,13 @@ var IISLA = IISLA || {};
         break;
       case 'rule':
         if (op === 'any') { fn = function (A) { return A.hits() !== ''; }; } else if (op === 'sev') {
-          var sevs = setOf(lowerList(v)), rsev = env.ruleSev || {}, hc = U.newMap();
+          // severity of each hit as graded for this row (outcome-graded rules drop for failed requests)
+          var sevs = setOf(lowerList(v)), hc = U.newMap();
           fn = function (A) {
-            var h = A.hits(); if (!h) { return false; }
+            var h = A.hitSevs(); if (!h) { return false; }
             var r = hc[h]; if (r !== undefined) { return r; }
             var parts = h.split(','); r = false;
-            for (var j = 0; j < parts.length; j++) { if (sevs[rsev[parts[j]]] === 1) { r = true; } }
+            for (var j = 0; j < parts.length; j++) { if (sevs[parts[j]] === 1) { r = true; } }
             hc[h] = r; return r;
           };
         } else {
@@ -8370,6 +8406,13 @@ var IISLA = IISLA || {};
   };
 
   /* ======================= DIALOGS ======================= */
+  /* Filename-date range of the files whose rows overlap [from, to] (index first/last timestamps, else the filename
+   * date). Returns null when no dated file overlaps, so the dialog falls back to all files. */
+  V.fileDefaultsForRange = function (from, to) {
+    var files = (st.scope || st.site).files, ids = A.fileIdsForRange(from, to), a = '', z = '', i, d;
+    for (i = 0; i < ids.length; i++) { d = files[ids[i]].nameDate; if (d && d.length === 10) { if (!a || d < a) { a = d; } if (!z || d > z) { z = d; } } }
+    return a ? { from: a, to: z } : null;
+  };
   function fileSelector(files, defaults) {
     var dates = files.filter(function (f) { return f.nameDate; }).map(function (f) { return f.nameDate; }).sort();
     var from = UI.input(defaults && defaults.from || (dates[0] || ''), { style: { width: '110px' } }), to = UI.input(defaults && defaults.to || (dates[dates.length - 1] || ''), { style: { width: '110px' } });
@@ -8410,7 +8453,8 @@ var IISLA = IISLA || {};
     if (!st.site) { UI.alert('Load', 'Open evidence first.'); return; }
     preset = preset || {};
     var files = (st.scope || st.site).files;
-    var fs = fileSelector(files, preset.fileDefaults);
+    // A time range from a chart also narrows the file selection to the files that cover it, so only those are read.
+    var fs = fileSelector(files, preset.fileDefaults || ((preset.from || preset.to) ? V.fileDefaultsForRange(preset.from, preset.to) : null));
     var tf = UI.input(preset.from ? U.fmtTs(preset.from, St.tz) : '', { style: { width: '150px' }, placeholder: 'YYYY-MM-DD[ HH:MM]' });
     var tt = UI.input(preset.to ? U.fmtTs(preset.to, St.tz) : '', { style: { width: '150px' }, placeholder: 'YYYY-MM-DD[ HH:MM]' });
     var pre = UI.input(preset.pre || '', { id: 'loadpre', style: { width: '560px' }, placeholder: 'optional quick filter applied while loading, e.g. class:public' });
@@ -8767,7 +8811,7 @@ var IISLA = IISLA || {};
       cell: function (r, k) { return St.colByKey[k].get(store, g.view[r]); },
       rowClass: function (r) {
         var i = g.view[r], s = store.status[i], c = s >= 500 ? 's5' : (s >= 400 ? 's4' : '');
-        if (store.flags[i] & St.FLAGS.HITS) { var hs = store.t.hits.vals[store.hits[i]], sv = 0, p = hs.split(','), j; for (j = 0; j < p.length; j++) { sv = Math.max(sv, R.SEV[st.ruleSev[p[j]]] || 0); } c += ' hit' + sv; }
+        if (store.flags[i] & St.FLAGS.HITS) { var hs = store.t.hsev.vals[store.hsev[i]], sv = 0, p = hs.split(','), j; for (j = 0; j < p.length; j++) { sv = Math.max(sv, R.SEV[p[j]] || 0); } c += ' hit' + sv; }
         if (C.cur && St.tagText(store, i)) { c += ' tagged'; }
         return c;
       },
@@ -8802,7 +8846,7 @@ var IISLA = IISLA || {};
     var stCode = store.status[i] + '.' + Math.max(0, store.sub[i]);
     var file = store.files[store.file[i]], rk = C.rowKey(st.site.name, file.name, store.line[i]);
     var hitsEl = h('span');
-    if (hits) { hits.split(',').forEach(function (id) { var r = st.ruleset.byId[id]; hitsEl.appendChild(h('span', { className: 'sev sev-' + (r ? r.severity : 'info'), title: r ? r.description : '' }, id)); hitsEl.appendChild(document.createTextNode(' ' + (r ? r.name : '') + '   ')); }); }
+    if (hits) { var hsv = (A2.hitSevs ? A2.hitSevs() : '').split(','); hits.split(',').forEach(function (id, hi) { var r = st.ruleset.byId[id], gsv = hsv[hi] || (r ? r.severity : 'info'); hitsEl.appendChild(h('span', { className: 'sev sev-' + gsv, title: (r ? r.description : '') + (r && gsv !== r.severity ? ' (graded ' + gsv + ' for this response; rule default ' + r.severity + ')' : '') }, id)); hitsEl.appendChild(document.createTextNode(' ' + (r ? r.name : '') + '   ')); }); }
     var ioc = st.iocMatcher ? st.iocMatcher.test(A2) : null;
     var left = UI.kv([
       ['Time', U.fmtTs(store.ts[i]) + ' UTC   \u00b7   ' + U.fmtTs(store.ts[i], St.tz) + ' ' + tzLabel()],

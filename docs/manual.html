@@ -97,7 +97,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <div class="layout">
 <nav class="toc" aria-label="Contents">
   <div class="brand">IIS Log Analyzer</div>
-  <div class="ver">Manual for version 1.2.0</div>
+  <div class="ver">Manual for version 1.3.0</div>
   <ol id="toc-list"></ol>
   <button class="theme-btn" id="themeBtn" type="button">Toggle light / dark</button>
 </nav>
@@ -107,7 +107,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <header class="hero">
   <h1>IIS Log Analyzer</h1>
   <p class="lead">Offline forensic analysis of Microsoft IIS W3C Extended logs, from a single HTML Application that runs on any Windows 10 or 11 workstation with nothing to install.</p>
-  <div class="chips"><span class="chip">Version 1.2.0</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
+  <div class="chips"><span class="chip">Version 1.3.0</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
 </header>
 
 <details class="toc-mobile"><summary>Contents</summary><ol id="toc-mobile-list"></ol></details>
@@ -237,6 +237,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
   <li><strong>Actions:</strong> <em>Load evidence rows</em> loads exactly the rows behind the finding; <em>IP profile</em> and <em>URI profile</em> open the entity; <em>Raw context of first occurrence</em> shows the lines around the first hit, read directly from the evidence file.</li>
   <li><strong>Dispositions:</strong> Needs review, True positive, False positive, Benign true positive, each with an examiner note. They are saved in the case and appear in the report.</li>
   <li><strong>Grouping:</strong> when a rule matches more than 25 clients, files or paths, the 25 strongest are separate findings and the rest are folded into one summary finding.</li>
+  <li><strong>Outcome:</strong> row-rule findings list their responses by status class. Rules that match the request itself are graded by the response (see <a href="#rules">Detection rules</a>), so probes that only received 404s are reported as low.</li>
   <li><strong>Re-evaluate aggregate rules</strong> rebuilds findings from the index after rule settings change. Row-rule changes need a rescan; the app warns when a row rule was enabled after the scan.</li>
 </ul>
 </section>
@@ -245,6 +246,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <h2>Loading rows</h2>
 <p><em>Load rows&hellip;</em> streams the selected files again and keeps the rows that match a date range and an optional pre-filter (same syntax as the quick filter, for example <code>class:public method:POST</code>). Presets cover common slices. Loading stops at the row cap (2,000,000 rows in the 64-bit host by default); nothing is sampled, and a capped load says so.</p>
 <ul>
+  <li><strong>From a chart:</strong> dragging across or clicking a chart (Overview, Timeline, month heatmap, Integrity) opens the dialog with that time range for the rows and narrows the filename dates to the files that cover it, so only those files are read. Widen the file range if you need to.</li>
   <li><strong>Keep raw lines</strong> stores the original text of each row for display, copying and raw exports.</li>
   <li>Files up to 32 MB are buffered while they are read; larger files are streamed so memory stays bounded.</li>
   <li>A file that cannot be opened is never skipped silently: the load is marked incomplete, the files are listed on screen, and every export from that load records them.</li>
@@ -285,7 +287,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td><code>ua:python</code> <code>family:scanner</code> <code>ua:empty</code></td><td>User agent contains, user-agent family, empty user agent</td></tr>
 <tr><td><code>taken:&gt;30000</code> <code>bytes:&gt;1000000</code></td><td>time-taken in milliseconds, sc-bytes</td></tr>
 <tr><td><code>after:2026-03-09</code> <code>before:"2026-03-10 12:00"</code> <code>hour:0-6</code> <code>dow:0,6</code></td><td>Time in the case time zone (append <code>Z</code> for UTC), local hour, weekday (0 = Sunday)</td></tr>
-<tr><td><code>rule:any</code> <code>rule:R-EXP-*</code> <code>sev:high,critical</code></td><td>Any rule hit, rule ID or wildcard, hit severity</td></tr>
+<tr><td><code>rule:any</code> <code>rule:R-EXP-*</code> <code>sev:high,critical</code></td><td>Any rule hit, rule ID or wildcard, hit severity as graded for that row</td></tr>
 <tr><td><code>tag:Attacker</code> <code>tag:none</code> <code>ioc:any</code></td><td>Tags and IOC matches</td></tr>
 <tr><td><code>file:u_ex2603*</code> <code>text:"phrase"</code></td><td>Source file name, raw-line substring</td></tr>
 <tr><td><code>-status:304</code></td><td>Negation of any term</td></tr>
@@ -433,6 +435,16 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td class="nowrap">R-INF-006</td><td class="sev medium">medium</td><td>corpus</td><td>Heartbeat absent</td><td>T1562.002</td></tr>
 <tr><td class="nowrap">R-INF-007</td><td class="sev low">low</td><td>file</td><td>Malformed or undecodable content</td><td>T1070</td></tr>
 </table></div>
+<h3>Severity graded by the response</h3>
+<p>Six row rules match the request itself (web shell names and parameters, PHP-CGI injection, path traversal, SQL and command injection, .NET probing): R-WS-004 and R-EXP-001 to R-EXP-005. A scanner that asks for <code>/shell.php</code> and gets a 404 is hunting for a web shell, not using one, so these rules carry <code>"gradeByStatus": true</code> and their severity follows what the server answered:</p>
+<div class="table-wrap"><table>
+<tr><th>Response</th><th>Severity of that hit</th></tr>
+<tr><td>2xx (reached a handler) or 5xx (the handler failed)</td><td>The rule's severity, as listed above</td></tr>
+<tr><td>3xx</td><td>One level lower</td></tr>
+<tr><td>4xx and anything else</td><td>Low</td></tr>
+<tr><td>Status not logged</td><td>Unchanged</td></tr>
+</table></div>
+<p>Every request is still matched and counted, because failed attempts are evidence of who tried what and when. A finding takes the highest severity among its rows, so a single successful request keeps it at its full severity even among thousands of 404s. Each row-rule finding also lists its responses (for example <em>Responses: 1 2xx, 1,640 4xx</em>) and says when nothing succeeded. In the grid, <code>sev:</code> and the row colours use the graded severity, and the rule-hit badges in the row detail show it, with the rule default in the tooltip. Set <code>gradeByStatus</code> to <code>false</code> in <code>rules\default-rules.json</code> to turn grading off for a rule.</p>
 <h3>Custom rules</h3>
 <p>Add row rules to the JSON with a <code>match</code> block (see the disabled example <code>C-EXAMPLE-001</code>). Supported keys: <code>method</code>, <code>stem</code>, <code>query</code>, <code>ua</code>, <code>user</code>, <code>raw</code> (each <code>{contains|glob|regex|equals}</code>), <code>status</code> (<code>404</code>, <code>4xx</code>, <code>404.8</code>), <code>ipClass</code>, <code>uaFamily</code>, <code>ext</code>, <code>cip</code> (CIDRs), <code>minTaken</code> and <code>exec</code>.</p>
 <h3>Lists</h3>
@@ -548,7 +560,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 </ul>
 </section>
 
-<footer>IIS Log Analyzer 1.2.0 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
+<footer>IIS Log Analyzer 1.3.0 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
 </div>
 </main>
 </div>

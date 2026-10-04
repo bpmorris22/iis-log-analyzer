@@ -28,7 +28,7 @@ Double-clicking `IISLogAnalyzer.hta` works too. An evidence path can be passed a
 1. **Case & evidence.** Open or create a case. The workspace is `<workspace root>\<CaseID>\IIS-Log-Analyzer\` (default root `%USERPROFILE%\Documents\IIS Log Analyzer Cases`, set in Settings). Choose the display time zone for the case. Open the evidence folder: a `LogFiles` folder, a `W3SVCn` folder, or a single `.log` file. Velociraptor collections are recognised automatically; original paths (`C:\inetpub\...`) are shown alongside the `C%3A` on-disk paths.
 2. **Scan.** Streams every selected file once and builds the index: per-day/hour counts, per-client, per-path and per-user-agent aggregates, first-seen tables, restarts, gaps and rule hits. Rows are not kept in memory. Choose the fast or the built-in engine (see below). Scans can be cancelled and continued. The index is cached in the case workspace and reloaded automatically if the evidence is unchanged; a changed file blocks the cached index and is reported.
 3. **Overview and Findings.** Review the corpus, then findings by severity. Record a disposition (true positive, false positive, benign) and a note for each.
-4. **Load rows.** Choose a date range and/or a pre-filter (for example `class:public`) to load a slice into the grid. The load stops at the row cap; nothing is sampled.
+4. **Load rows.** Choose a date range and/or a pre-filter (for example `class:public`) to load a slice into the grid. Opened from a chart, the dialog takes the selected time range and narrows the file selection to the files that cover it. The load stops at the row cap; nothing is sampled.
 5. **Investigate.** Grid with quick filters, pivots (right-click), raw context straight from the evidence file (Enter / double-click), Top-N, Timeline, IP and URI profiles, Sessions, and free-form SQL through Log Parser 2.2 when it is installed.
 6. **Tag, note, export, report.** Every export and report is hashed (`.sha256` sidecar) and recorded in `audit.log`.
 
@@ -83,7 +83,7 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 | `ua:python` `family:scanner` `ua:empty` | user agent contains, family, empty |
 | `taken:>30000` `bytes:>1000000` | time-taken ms, sc-bytes |
 | `after:2026-09-08` `before:"2026-09-08 12:00"` `hour:0-6` `dow:0,6` | time in the display time zone (append `Z` for UTC), local hour, weekday |
-| `rule:any` `rule:R-EXP-*` `sev:high,critical` | rule hits |
+| `rule:any` `rule:R-EXP-*` `sev:high,critical` | rule hits; `sev:` uses the severity graded for that row |
 | `tag:Attacker` `tag:none` `ioc:any` | tags and IOC matches |
 | `file:u_ex2609*` `text:"phrase"` | source file, raw-line substring |
 | `-field:value` | negate any term; bare words must all appear in the stem or query |
@@ -91,6 +91,7 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 ## Detection rules and lists
 
 - `rules\default-rules.json` holds the 41 built-in rules (reconnaissance, exploitation, web shells, credential access, exfiltration, log integrity) with severity, ATT&CK IDs, descriptions and tunable `params`. Their logic lives in `lib\rules.js` and `lib\scan.js` (and, identically, in the fast engine); thresholds come from the JSON.
+- Rules that match the request itself (R-WS-004 web shell names and parameters, R-EXP-001 to R-EXP-005 injection and probing) are graded by the response (`"gradeByStatus": true`): a hit keeps the rule severity when the server answered 2xx or 5xx, drops one level for 3xx, and drops to low for 4xx and other failures. Failed attempts are still counted. A finding takes the highest severity of its rows, and every row-rule finding lists its responses by status class.
 - Rules can be enabled or disabled per case under Settings. Row-rule changes need a rescan. Aggregate-rule changes apply with "Re-evaluate aggregate rules" in Findings.
 - Custom row rules are added to the JSON with a `match` block (see `C-EXAMPLE-001`). Supported keys: `method`, `stem`, `query`, `ua`, `user`, `raw` (each `{contains|glob|regex|equals}`), `status` (`404`, `4xx`, `404.8`), `ipClass`, `uaFamily`, `ext`, `cip` (CIDRs), `minTaken`, `exec`.
 - `lists\*.txt` hold the sensitive paths, scanner user agents, executable and static extensions, login and download endpoints, known exploit paths, web shell names and parameters. One entry per line; `re:` prefix for a regex, `*`/`?` for a glob, otherwise a substring. Restart the HTA after editing.

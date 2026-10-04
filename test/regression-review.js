@@ -73,6 +73,25 @@ function check(name, ok, detail) { console.log((ok ? 'PASS ' : 'FAIL ') + name +
   }
   check('stalled fast engine ends with an error', !!result && /no progress/.test(result.message), result ? result.message : 'still waiting');
 
+  // 7. outcome grading (1.3.0): failed requests drop to low, 2xx/5xx keep the rule severity, 3xx drops one level
+  var G = NS.rules.gradeSev;
+  check('grade 404 high -> low', G('high', 404) === 'low');
+  check('grade 200 high stays', G('high', 200) === 'high');
+  check('grade 500 high stays', G('high', 500) === 'high');
+  check('grade 302 high -> medium', G('high', 302) === 'medium');
+  check('grade status not logged unchanged', G('high', -1) === 'high');
+  check('grade info stays info', G('info', 404) === 'info');
+  (function () {
+    var ev = new NS.rules.Evaluator(ruleset, new NS.parser.Deriver(lists)), row = NS.parser.newRow(), fp = new NS.parser.FileParser(0);
+    fp.line('#Fields: date time c-ip cs-method cs-uri-stem cs-uri-query sc-status', row);
+    fp.line('2026-01-01 00:00:01 203.0.113.9 GET /uploads/shell.php - 404', row); ev.evaluate(row);
+    var i404 = ev.hits.slice(0, ev.n).indexOf('R-WS-004'), s404 = i404 >= 0 ? ev.hitSev[i404] : '';
+    fp.line('2026-01-01 00:00:02 203.0.113.9 GET /uploads/shell.php - 200', row); ev.evaluate(row);
+    var i200 = ev.hits.slice(0, ev.n).indexOf('R-WS-004'), s200 = i200 >= 0 ? ev.hitSev[i200] : '';
+    check('R-WS-004 on a 404 graded low', s404 === 'low', s404);
+    check('R-WS-004 on a 200 stays high', s200 === 'high', s200);
+    check('hitSevString parallels hitString', ev.hitSevString().split(',').length === ev.hitString().split(',').length);
+  }());
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(failures ? failures + ' CHECK(S) FAILED' : 'ALL CHECKS PASSED');
   process.exit(failures ? 1 : 0);
