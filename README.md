@@ -124,6 +124,8 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 
 ## Keyboard
 
+Click any column heading in a list or table to sort by it (numbers largest first, text A to Z; click again to reverse).
+
 Ctrl+= / Ctrl+- / Ctrl+0 text size · Ctrl+F quick filter · Ctrl+L load rows · Ctrl+E export · Alt+1..9 views · arrows/PgUp/PgDn/Ctrl+Home/End in grids · Shift/Ctrl+click multi-select · Ctrl+C rows as TSV · Ctrl+Shift+C raw lines · Enter raw context · right-click pivot menu. F5 is disabled because it would discard loaded state.
 
 ## Testing

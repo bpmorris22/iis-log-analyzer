@@ -94,6 +94,9 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 12px; }
 table.tbl th { text-align: left; background: #edf2f7; border-bottom: 1px solid #cbd5e0; padding: 3px 6px; white-space: nowrap; }
 table.tbl td { border-bottom: 1px solid #edf2f7; padding: 2px 6px; vertical-align: top; word-break: break-all; }
 table.tbl tr.clickable { cursor: pointer; }
+table.tbl th.sortable { cursor: pointer; user-select: none; }
+table.tbl th.sortable:hover { background: #e2e8f0; }
+table.tbl th .sort-arrow { color: #4a5568; }
 table.tbl tr:hover td { background: #f7fafc; }
 .sev { white-space: nowrap; display: inline-block; padding: 0 5px; border-radius: 3px; color: #fff; font-size: 10px; text-transform: uppercase; line-height: 15px; }
 .sev-critical { background: #742a2a; } .sev-high { background: #c53030; } .sev-medium { background: #dd6b20; } .sev-low { background: #b7791f; } .sev-info { background: #718096; }

@@ -110,6 +110,9 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 12px; }
 table.tbl th { text-align: left; background: #edf2f7; border-bottom: 1px solid #cbd5e0; padding: 3px 6px; white-space: nowrap; }
 table.tbl td { border-bottom: 1px solid #edf2f7; padding: 2px 6px; vertical-align: top; word-break: break-all; }
 table.tbl tr.clickable { cursor: pointer; }
+table.tbl th.sortable { cursor: pointer; user-select: none; }
+table.tbl th.sortable:hover { background: #e2e8f0; }
+table.tbl th .sort-arrow { color: #4a5568; }
 table.tbl tr:hover td { background: #f7fafc; }
 .sev { white-space: nowrap; display: inline-block; padding: 0 5px; border-radius: 3px; color: #fff; font-size: 10px; text-transform: uppercase; line-height: 15px; }
 .sev-critical { background: #742a2a; } .sev-high { background: #c53030; } .sev-medium { background: #dd6b20; } .sev-low { background: #b7791f; } .sev-info { background: #718096; }
@@ -2661,7 +2664,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util = {};
 
-  NS.VERSION = '1.3.0';
+  NS.VERSION = '1.3.1';
   NS.bootWarnings = NS.bootWarnings || [];
   /* Debug trace to %TEMP%\iisla-trace.log (enabled with /trace on the command line or always during autotest). */
   NS.traceOn = false;
@@ -6091,17 +6094,31 @@ var IISLA = IISLA || {};
     return UI.h('div', { className: 'section' }, [UI.h('div', { className: 'section-h' }, [UI.h('span', null, title), tools ? UI.h('span', { className: 'section-tools' }, tools) : null]), UI.h('div', { className: 'section-b' }, kids)]);
   };
   UI.sevBadge = function (sev) { return UI.h('span', { className: 'sev sev-' + sev }, sev); };
+  /* Static table. Clicking a column heading sorts the rows by that column (numbers largest first, text A to Z; a
+   * second click reverses); row click handlers keep their original row index. opts.sortable = false turns it off. */
   UI.table = function (headers, rows, opts) {
     opts = opts || {};
-    var t = UI.h('table', { className: 'tbl ' + (opts.className || '') }), tr = UI.h('tr'), i, j, r, td;
-    for (i = 0; i < headers.length; i++) { tr.appendChild(UI.h('th', null, headers[i])); }
-    t.appendChild(UI.h('thead', null, tr));
+    var t = UI.h('table', { className: 'tbl ' + (opts.className || '') }), tr = UI.h('tr'), i, j, r, td, trs = [], ths = [];
+    var sortable = opts.sortable !== false && rows.length > 1, sortCol = -1, sortDesc = false;
     var tb = UI.h('tbody');
+    function sortBy(c) {
+      var val = function (x) { return rows[x][c]; };
+      if (sortCol === c) { sortDesc = !sortDesc; } else { sortCol = c; sortDesc = UI.firstSortDesc(rows.length, val, false); }
+      var order = UI.sortOrder(rows.length, val, sortDesc), q;
+      for (q = 0; q < order.length; q++) { tb.appendChild(trs[order[q]]); }
+      for (q = 0; q < ths.length; q++) { UI.text(ths[q].arrow, q === sortCol ? (sortDesc ? ' \u25bc' : ' \u25b2') : ''); }
+    }
+    for (i = 0; i < headers.length; i++) {
+      var th = UI.h('th', sortable ? { className: 'sortable', title: 'Click to sort by this column; click again to reverse' } : null, headers[i]);
+      if (sortable) { th.arrow = UI.h('span', { className: 'sort-arrow' }); th.appendChild(th.arrow); th.onclick = (function (c) { return function () { sortBy(c); }; }(i)); }
+      ths.push(th); tr.appendChild(th);
+    }
+    t.appendChild(UI.h('thead', null, tr));
     for (i = 0; i < rows.length; i++) {
       r = rows[i]; tr = UI.h('tr', { className: opts.rowClass ? opts.rowClass(i) : '' });
       if (opts.onRow) { tr.className += ' clickable'; tr.onclick = (function (ix) { return function (e) { opts.onRow(ix, e || window.event); }; }(i)); }
       for (j = 0; j < r.length; j++) { td = UI.h('td'); UI.append(td, r[j]); tr.appendChild(td); }
-      tb.appendChild(tr);
+      tb.appendChild(tr); trs.push(tr);
     }
     t.appendChild(tb);
     return t;
@@ -6200,12 +6217,78 @@ var IISLA = IISLA || {};
     try { window.clipboardData.setData('Text', text); UI.toast('Copied ' + U.fmtNum(text.length) + ' characters'); return true; } catch (e) { UI.toast('Clipboard unavailable: ' + e.message, 'error'); return false; }
   };
 
+  /* ---------- column sorting (tables and grids) ---------- */
+  /* Sort key of a displayed value: numbers (also "1,086", "98.7%", "-3") compare numerically, IPv4 addresses by
+   * octet, everything else as lower-case text; empty values and "-" are null and always sort last. */
+  UI.sortKeyOf = function (v) {
+    if (v === null || v === undefined) { return null; }
+    if (typeof v === 'number') { return isNaN(v) ? null : v; }
+    if (typeof v === 'object') { v = v.innerText !== undefined ? v.innerText : (v.textContent || ''); }
+    var s = ('' + v).replace(/^\s+|\s+$/g, '');
+    if (s === '' || s === '-') { return null; }
+    if (/^[-+]?[\d,]*\.?\d+\s*%?$/.test(s) && /\d/.test(s)) { var n = +s.replace(/[,%\s+]/g, ''); if (!isNaN(n)) { return n; } }
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(s)) { return s.split('.').map(function (o) { return ('00' + o).slice(-3); }).join('.'); }
+    return s.toLowerCase();
+  };
+  UI.compareKeys = function (a, b) {
+    var an = typeof a === 'number', bn = typeof b === 'number';
+    if (an && bn) { return a - b; }
+    if (an !== bn) { return an ? -1 : 1; } // numbers before text
+    return a < b ? -1 : (a > b ? 1 : 0);
+  };
+  /* Stable display order of n rows by valueOf(i); blanks last in both directions. */
+  UI.sortOrder = function (n, valueOf, desc) {
+    var idx = new Array(n), keys = new Array(n), i;
+    for (i = 0; i < n; i++) { idx[i] = i; keys[i] = UI.sortKeyOf(valueOf(i)); }
+    idx.sort(function (x, y) {
+      var a = keys[x], b = keys[y];
+      if (a === null || b === null) { return a === b ? x - y : (a === null ? 1 : -1); }
+      var c = UI.compareKeys(a, b);
+      return (desc ? -c : c) || (x - y);
+    });
+    return idx;
+  };
+  /* Numbers start with the largest value, text from A; a second click reverses. */
+  UI.firstSortDesc = function (n, valueOf, isNum) {
+    if (isNum) { return true; }
+    for (var i = 0; i < n; i++) { var k = UI.sortKeyOf(valueOf(i)); if (k !== null) { return typeof k === 'number'; } }
+    return false;
+  };
+  /* Grids that do not sort their data themselves (no onSort) get header sorting here: the grid keeps a display
+   * order (grid.perm) and maps every row index it hands back to the caller onto the caller's own row, so views
+   * need no changes. opts.sortable = false turns it off. */
+  UI.autoSortOpts = function (grid, o) {
+    if (o.onSort || o.sortable === false || !o.cell || !o.count) { return o; }
+    var w = {}, k;
+    for (k in o) { if (Object.prototype.hasOwnProperty.call(o, k)) { w[k] = o[k]; } }
+    grid.perm = null;
+    function src(r) { var p = grid.perm; return p && r >= 0 && r < p.length ? p[r] : r; }
+    grid.srcRow = src;
+    w.count = function () { var n = o.count(); if (grid.perm && grid.perm.length !== n) { grid.perm = null; w.sortKey = null; } return n; };
+    w.cell = function (r, key) { return o.cell(src(r), key); };
+    if (o.rowClass) { w.rowClass = function (r) { return o.rowClass(src(r)); }; }
+    if (o.onSelect) { w.onSelect = function (r) { return o.onSelect(src(r)); }; }
+    if (o.onActivate) { w.onActivate = function (r) { return o.onActivate(src(r)); }; }
+    if (o.onContext) { w.onContext = function (r, key, x, y) { return o.onContext(src(r), key, x, y); }; }
+    if (o.onCopy) { w.onCopy = function (rows, raw) { return o.onCopy(rows.map(src), raw); }; }
+    w.onSort = function (key) {
+      var n = o.count(), col = null, i, val = function (r) { return o.cell(r, key); };
+      for (i = 0; i < grid.cols.length; i++) { if (grid.cols[i].key === key) { col = grid.cols[i]; } }
+      if (w.sortKey === key) { w.sortDesc = !w.sortDesc; } else { w.sortKey = key; w.sortDesc = UI.firstSortDesc(n, val, col && col.num); }
+      grid.perm = UI.sortOrder(n, val, w.sortDesc);
+      grid.sel = -1; grid.anchor = -1; grid.multi = {}; grid.multiN = 0;
+      grid.renderHead(); grid.refresh(false);
+    };
+    return w;
+  };
+
   /* ---------- virtualized grid ---------- */
   var MAXH = 1000000;
   /* opts: columns [{key,label,w,num}], count(), cell(row,key)->string, rowClass(row), onSelect(row), onActivate(row),
    *       onContext(row,key,x,y), onSort(key), sortKey, sortDesc, rowH, onColumns(cols) */
   UI.VGrid = function (host, opts) {
     var self = this;
+    opts = UI.autoSortOpts(this, opts);
     this.o = opts; this.pinned = opts.pinned || 0; this.rh = opts.rowH || UI.px(20); this.cols = UI.scaleCols(opts.columns); this.first = 0; this.sel = -1; this.anchor = -1; this.multi = {}; this.multiN = 0;
     this.root = UI.h('div', { className: 'vg', tabIndex: 0 });
     this.head = UI.h('div', { className: 'vg-head' });
@@ -8218,6 +8301,17 @@ var IISLA = IISLA || {};
           try { var tzs = NS.views.tzSelect('Pacific Standard Time'), z = tzs.get(); step('tz.select', { id: z.id, label: z.label, offNow: z.off(Date.now()), offJan: z.off(Date.UTC(2026, 0, 15)), offJul: z.off(Date.UTC(2026, 6, 15)) }); } catch (te) { res.errors.push('tzSelect: ' + te.message); }
           // XSS canary: render a hostile string through every text path
           var canary = '<img src=x onerror=alert(1)>"><scr' + 'ipt>alert(2)</scr' + 'ipt>';
+          // header sorting: a static table and an auto-sorting grid (display order maps back to the caller's rows)
+          try {
+            var stt = UI.table(['Name', 'Count'], [['b', '1,086'], ['a', '9'], ['c', '-'], ['d', '250']]), sth = stt.getElementsByTagName('th');
+            var ord = function () { var o = [], q, rs = stt.tBodies[0].rows; for (q = 0; q < rs.length; q++) { o.push(rs[q].cells[0].innerText); } return o.join(''); };
+            sth[1].onclick(); var byCountDesc = ord(); sth[1].onclick(); var byCountAsc = ord(); sth[0].onclick(); var byName = ord();
+            var gh = UI.h('div', { style: { position: 'absolute', left: '-5000px', width: '400px', height: '200px' } }); document.body.appendChild(gh);
+            var picked = -1, gv = [5, 30, 10], sg = new UI.VGrid(gh, { columns: [{ key: 'n', label: 'N', w: 80, num: true }], count: function () { return gv.length; }, cell: function (r) { return gv[r]; }, onSelect: function (r) { picked = r; } });
+            sg.o.onSort('n'); var g0 = sg.o.cell(0, 'n'); sg.select(0); var mapped = picked; document.body.removeChild(gh);
+            step('sort.headers', { tableCountDesc: byCountDesc, tableCountAsc: byCountAsc, tableName: byName, gridFirst: g0, gridSelectMapsTo: mapped,
+              ok: byCountDesc === 'bdac' && byCountAsc === 'adbc' && byName === 'abcd' && g0 === 30 && mapped === 1 });
+          } catch (eS) { res.errors.push('sort.headers: ' + eS.message); }
           var probe = UI.h('div', null, canary);
           step('xss.probe', { rendered: probe.textContent === canary, childElements: probe.getElementsByTagName('*').length });
           try { var rp = A.report(true); step('report', rp); } catch (e) { res.errors.push('report: ' + e.message); }
@@ -9431,7 +9525,7 @@ var IISLA = IISLA || {};
     if (notes.length > 1500) { notes = notes.substr(0, 1500) + '\n...'; }
     var body = h('div', null, [
       h('p', null, 'Version ' + info.version + ' is available. This copy is version ' + UP.current() + '.'),
-      h('div', { className: 'muted small' }, (info.name || info.tag) + (info.published ? ' · published ' + info.published.substr(0, 10) : '')),
+      h('div', { className: 'muted small' }, (info.name || info.tag) + (info.published ? ' \u00b7 published ' + info.published.substr(0, 10) : '')),
       h('div', { className: 'upd-notes' }, notes),
       h('p', { className: 'muted small' }, single ?
         'Download and replace checks the download (size, SHA-256 published with the release, embedded version), keeps the current file next to it as a backup, and offers to restart. Nothing is changed if any check fails.' :
