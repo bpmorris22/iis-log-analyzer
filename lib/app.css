@@ -4,6 +4,10 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #app { display: -ms-flexbox; display: flex; -ms-flex-direction: column; flex-direction: column; height: 100%; }
 #toolbar { -ms-flex: 0 0 auto; flex: 0 0 auto; background: #1f2d3d; color: #fff; padding: 5px 8px; display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; }
 #toolbar .brand { font-weight: 600; font-size: 14px; margin-right: 14px; letter-spacing: .2px; }
+#toolbar .brand-ver { font-weight: normal; font-size: 11px; margin-left: 2px; padding: 1px 5px; border-radius: 3px; background: rgba(255, 255, 255, .14); cursor: pointer; }
+#toolbar .brand-ver:hover { background: rgba(255, 255, 255, .28); }
+#toolbar .brand-upd { font-weight: 600; font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 3px; background: #38a169; color: #fff; cursor: pointer; }
+.upd-notes { white-space: pre-wrap; max-height: 260px; overflow: auto; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px 8px; margin: 8px 0; font-size: 12px; }
 #toolbar .btn { background: #2f4a66; color: #fff; border-color: #3d5d80; margin-right: 4px; }
 #toolbar .btn:hover { background: #3b5a7c; }
 .tb-right { margin-left: auto; }

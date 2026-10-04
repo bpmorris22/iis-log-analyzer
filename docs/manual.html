@@ -97,7 +97,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <div class="layout">
 <nav class="toc" aria-label="Contents">
   <div class="brand">IIS Log Analyzer</div>
-  <div class="ver">Manual for version 1.1.2</div>
+  <div class="ver">Manual for version 1.2.0</div>
   <ol id="toc-list"></ol>
   <button class="theme-btn" id="themeBtn" type="button">Toggle light / dark</button>
 </nav>
@@ -107,7 +107,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <header class="hero">
   <h1>IIS Log Analyzer</h1>
   <p class="lead">Offline forensic analysis of Microsoft IIS W3C Extended logs, from a single HTML Application that runs on any Windows 10 or 11 workstation with nothing to install.</p>
-  <div class="chips"><span class="chip">Version 1.1.2</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
+  <div class="chips"><span class="chip">Version 1.2.0</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
 </header>
 
 <details class="toc-mobile"><summary>Contents</summary><ol id="toc-mobile-list"></ol></details>
@@ -173,7 +173,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <h2>The window</h2>
 <div class="table-wrap"><table>
 <tr><th>Area</th><th>Contents</th></tr>
-<tr><td>Toolbar</td><td><em>Open evidence&hellip;</em>, <em>Scan&hellip;</em>, <em>Load rows&hellip;</em>, <em>Export&hellip;</em>, <em>Report</em>; the case ID, display time zone and host bitness; text size controls.</td></tr>
+<tr><td>Toolbar</td><td>The name and version (click the version to check for updates); <em>Open evidence&hellip;</em>, <em>Scan&hellip;</em>, <em>Load rows&hellip;</em>, <em>Export&hellip;</em>, <em>Report</em>; the case ID, display time zone and host bitness; text size controls.</td></tr>
 <tr><td>Navigation</td><td>Case &amp; evidence, Overview, Findings (with count), Rows (grid, with loaded count), Top-N, Timeline, Client IPs, URI stems, Sessions, Integrity, IOCs, Log Parser, Tags &amp; notes, Settings, Help. <kbd>Alt</kbd>+<kbd>1</kbd>&hellip;<kbd>9</kbd> jump to the first nine.</td></tr>
 <tr><td>Status bar</td><td>Site, files and size; rows indexed; findings; rows loaded and their memory estimate; current grid count; malformed rows; allow-listed IPs.</td></tr>
 </table></div>
@@ -350,6 +350,19 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <div class="callout"><p>The bridge has been tested with a stand-in for <code>LogParser.exe</code>, not with the real program.</p></div>
 </section>
 
+<section id="updates">
+<h2>Updates</h2>
+<p>The version number is shown next to the name in the top-left corner of the window (and in the window title). Click it, or choose <em>Check for updates&hellip;</em> on the Help page or in Settings, to ask GitHub for the latest release. The check asks for confirmation first, because it contacts <code>api.github.com</code>: GitHub sees the workstation's public IP address and the app version, and nothing else is sent. Each check is recorded in the audit log of the open case. Automatic checks when the app starts can be turned on in Settings; they are off by default, which suits offline or air-gapped analysis workstations.</p>
+<p>When a newer version exists, a dialog shows its release notes and offers:</p>
+<div class="table-wrap"><table>
+<tr><th>Choice</th><th>What happens</th></tr>
+<tr><td><em>Download and replace</em> (single-file HTA)</td><td>The new <code>IISLogAnalyzer.hta</code> is downloaded next to the running file and checked: its size, its SHA-256 against the value GitHub publishes for the release asset, and the version number inside it. Only if every check passes is the running file replaced; the previous file is kept next to it as <code>IISLogAnalyzer-&lt;old version&gt;.bak.hta</code>. You are then offered a restart. If any check fails, nothing is changed. If the application folder is not writable, the verified file is saved to your Downloads folder instead.</td></tr>
+<tr><td><em>Download</em> (source folder)</td><td>A copy that runs from the repository folder (the HTA plus <code>lib\</code>) cannot be replaced by one file, so the verified single-file HTA is saved to your Downloads folder.</td></tr>
+<tr><td><em>Open release page</em></td><td>Opens the release on GitHub in your browser.</td></tr>
+</table></div>
+<p>When an update has been found, a green <em>update</em> label appears next to the version in the toolbar until you restart. Downloads and replacements are recorded in the audit log with the new file's SHA-256 and the backup path. Unblock a downloaded file (Properties &rarr; Unblock) before using it on another machine.</p>
+</section>
+
 <section id="export">
 <h2>Exports and the report</h2>
 <div class="table-wrap"><table>
@@ -450,6 +463,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td>Hash files during scan</td><td>On</td><td>SHA-256 of every evidence file</td></tr>
 <tr><td>Internal CIDRs, allow-list file, IOC file</td><td>none</td><td>Network classification and IOC import</td></tr>
 <tr><td>Log Parser 2.2 path</td><td>detected</td><td>Optional SQL bridge</td></tr>
+<tr><td>Check for updates when the app starts</td><td>Off</td><td>Asks GitHub for the latest release at start-up (network)</td></tr>
 </table></div>
 </section>
 
@@ -460,7 +474,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
   <li>SHA-256 values are computed out of process and compared with Velociraptor records where present; re-hashing reports changed files.</li>
   <li><code>audit.log</code> records case actions, evidence opened, scans (with engine, rule fingerprint, disabled rules and time zone), hashes, loads, every grid filter, tags, dispositions, Log Parser queries, exports and reports with their hashes. The report reproduces it.</li>
   <li>The rule-set fingerprint covers the rule text and which rules are enabled, so an index or report identifies exactly the rules that produced it.</li>
-  <li>The tool makes no network connections of its own. The only network actions are an optional reverse-DNS lookup of one IP, behind an operational-security warning, and opening the Log Parser download page in your browser on request; both ask for confirmation and are audited.</li>
+  <li>The tool makes no network connections unless you ask for one. The network actions are: an optional reverse-DNS lookup of one IP, behind an operational-security warning; opening the Log Parser download page in your browser; and the update check and download from GitHub. Each asks for confirmation (the start-up update check runs only when enabled in Settings) and is audited.</li>
   <li>Text is read as Windows-1252, which maps every byte losslessly; lines that are valid UTF-8 (the IIS default) are shown decoded. Raw exports always contain the original bytes.</li>
 </ul>
 </section>
@@ -534,7 +548,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 </ul>
 </section>
 
-<footer>IIS Log Analyzer 1.1.2 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
+<footer>IIS Log Analyzer 1.2.0 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
 </div>
 </main>
 </div>
