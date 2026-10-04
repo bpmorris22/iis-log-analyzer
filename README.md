@@ -61,7 +61,7 @@ The raw line bundle export writes each selected line byte-for-byte as stored in 
 
 ## Log Parser 2.2 (optional)
 
-If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parser 2.2`, or a path set in Settings), the **Log Parser** view runs SQL over the current scope. `{files}` in a query expands to the evidence files. Templates cover top clients, hourly volume, status breakdown, executable paths answered to non-internal clients, one client's requests, 5xx and slowest requests. Queries run hidden and asynchronously, results appear in the grid, can be exported with a hash, and every query is audited. The query text is passed through a query file, never on a command line. The tool never downloads or installs Log Parser.
+If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parser 2.2`, or a path set in Settings), the **Log Parser** view runs SQL over the current scope. `{files}` in a query expands to the evidence files. Templates cover top clients, hourly volume, status breakdown, executable paths answered to non-internal clients, one client's requests, 5xx and slowest requests. Queries run hidden and asynchronously, results appear in the grid, can be exported with a hash, and every query is audited. The query text is passed through a query file, never on a command line. A traffic light on the tab (and a dot in the navigation) shows green when `LogParser.exe` is found, amber when the path set in Settings does not exist, and red when it is not installed. **Download Log Parser 2.2...** opens Microsoft's official download page in the browser after confirmation; the tool itself never downloads or installs Log Parser.
 
 ## Quick filter syntax
 
@@ -101,7 +101,7 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 - The rule-set fingerprint covers the rule text and which rules are enabled. A cached index rebuilds its findings when the enabled rules have changed, and warns when a row rule enabled since the scan needs a rescan. Scans record the disabled rules in the audit log.
 - Log fields are attacker-controlled. They are rendered only as text (never HTML), CSV cells starting with `= + - @` are prefixed with `'`, the HTML report escapes everything, and values such as `__proto__` or `constructor` are handled as ordinary keys.
 - `audit.log` (JSON Lines) records case actions, evidence opened, scans (with engine and time zone), hashes, loads, every grid filter, tags, dispositions, Log Parser queries, exports and reports with output hashes. The report appendix reproduces it.
-- The only network action is an optional reverse-DNS lookup for a single IP, behind an OPSEC warning, and it is audited.
+- The tool makes no network connections of its own. The only network actions are an optional reverse-DNS lookup for a single IP, behind an OPSEC warning, and opening the Log Parser download page in the browser on request; both ask for confirmation and are audited.
 
 ## Workspace layout
 

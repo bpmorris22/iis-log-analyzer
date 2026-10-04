@@ -16,6 +16,17 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .nav-i.active { background: #fff; border-left-color: #2b6cb0; font-weight: 600; }
 .badge { float: right; background: #a0aec0; color: #fff; border-radius: 8px; padding: 0 6px; font-size: 10px; font-weight: normal; }
 .badge.hot { background: #c53030; }
+/* Log Parser traffic light */
+.tl { display: inline-block; vertical-align: middle; background: #2d3748; border-radius: 9px; padding: 3px 4px; }
+.tl-l { display: block; width: 14px; height: 14px; margin: 3px 0; border-radius: 50%; background: #4a5568; }
+.tl-l.red.on { background: #e53e3e; box-shadow: 0 0 6px #e53e3e; }
+.tl-l.amber.on { background: #ecc94b; box-shadow: 0 0 6px #ecc94b; }
+.tl-l.green.on { background: #38a169; box-shadow: 0 0 6px #38a169; }
+.tl-dot { float: right; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .25); }
+.tl-dot.red { background: #e53e3e; } .tl-dot.amber { background: #ecc94b; } .tl-dot.green { background: #38a169; }
+.lp-status { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; background: #fff; border: 1px solid #d5dce5; border-radius: 6px; padding: 8px 12px; margin: 4px 0 12px; }
+.lp-status > * { margin-right: 12px; }
+.lp-status-t { -ms-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
 #main { -ms-flex: 1 1 auto; flex: 1 1 auto; overflow: auto; min-width: 0; position: relative; display: -ms-flexbox; display: flex; -ms-flex-direction: column; flex-direction: column; }
 #statusbar { -ms-flex: 0 0 auto; flex: 0 0 auto; background: #e2e8f0; border-top: 1px solid #cbd5e0; padding: 3px 8px; color: #2d3748; white-space: nowrap; overflow: hidden; }
 #statusbar .busy { color: #c05621; font-weight: 600; }

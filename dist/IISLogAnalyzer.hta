@@ -32,6 +32,17 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .nav-i.active { background: #fff; border-left-color: #2b6cb0; font-weight: 600; }
 .badge { float: right; background: #a0aec0; color: #fff; border-radius: 8px; padding: 0 6px; font-size: 10px; font-weight: normal; }
 .badge.hot { background: #c53030; }
+/* Log Parser traffic light */
+.tl { display: inline-block; vertical-align: middle; background: #2d3748; border-radius: 9px; padding: 3px 4px; }
+.tl-l { display: block; width: 14px; height: 14px; margin: 3px 0; border-radius: 50%; background: #4a5568; }
+.tl-l.red.on { background: #e53e3e; box-shadow: 0 0 6px #e53e3e; }
+.tl-l.amber.on { background: #ecc94b; box-shadow: 0 0 6px #ecc94b; }
+.tl-l.green.on { background: #38a169; box-shadow: 0 0 6px #38a169; }
+.tl-dot { float: right; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .25); }
+.tl-dot.red { background: #e53e3e; } .tl-dot.amber { background: #ecc94b; } .tl-dot.green { background: #38a169; }
+.lp-status { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; background: #fff; border: 1px solid #d5dce5; border-radius: 6px; padding: 8px 12px; margin: 4px 0 12px; }
+.lp-status > * { margin-right: 12px; }
+.lp-status-t { -ms-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
 #main { -ms-flex: 1 1 auto; flex: 1 1 auto; overflow: auto; min-width: 0; position: relative; display: -ms-flexbox; display: flex; -ms-flex-direction: column; flex-direction: column; }
 #statusbar { -ms-flex: 0 0 auto; flex: 0 0 auto; background: #e2e8f0; border-top: 1px solid #cbd5e0; padding: 3px 8px; color: #2d3748; white-space: nowrap; overflow: hidden; }
 #statusbar .busy { color: #c05621; font-weight: 600; }
@@ -2632,7 +2643,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util = {};
 
-  NS.VERSION = '1.1.1';
+  NS.VERSION = '1.1.2';
   NS.bootWarnings = NS.bootWarnings || [];
   /* Debug trace to %TEMP%\iisla-trace.log (enabled with /trace on the command line or always during autotest). */
   NS.traceOn = false;
@@ -6002,6 +6013,11 @@ var IISLA = IISLA || {};
   UI.text = function (e, s) { e.textContent = U.stripCtl(s === null || s === undefined ? '' : '' + s); return e; };
   UI.$ = function (id) { return document.getElementById(id); };
   UI.btn = function (label, onclick, cls, title) { return UI.h('button', { className: 'btn ' + (cls || ''), onclick: onclick, title: title, type: 'button' }, label); };
+  /* Vertical traffic light: state 'red' | 'amber' | 'green' lights one lamp. */
+  UI.trafficLight = function (state, title) {
+    var lamps = ['red', 'amber', 'green'].map(function (c) { return UI.h('span', { className: 'tl-l ' + c + (c === state ? ' on' : '') }); });
+    return UI.h('span', { className: 'tl', title: title || '', role: 'img', 'aria-label': title || state }, lamps);
+  };
   UI.link = function (label, onclick, title) {
     return UI.h('a', { href: '#', className: 'lnk', title: title, onclick: function (ev) { (ev || window.event).preventDefault(); onclick(ev); return false; } }, label);
   };
@@ -7131,6 +7147,16 @@ var IISLA = IISLA || {};
     for (i = 0; i < c.length; i++) { if (U.fileExists(c[i])) { return c[i]; } }
     return '';
   };
+  /* Official Microsoft download page (Log Parser 2.2.10, LogParser.msi). Opened in the user's browser on request only. */
+  LP.DOWNLOAD_URL = 'https://www.microsoft.com/en-us/download/details.aspx?id=24659';
+  /* Traffic-light status: green = LogParser.exe found; amber = a path is set in Settings but nothing is there and no
+   * default install exists; red = not installed. */
+  LP.status = function (settings) {
+    var exe = LP.find(settings), set = U.trim((settings && settings.logParserPath) || '');
+    if (exe) { return { state: 'green', exe: exe, label: 'Log Parser 2.2 installed', detail: exe }; }
+    if (set) { return { state: 'amber', exe: '', label: 'Log Parser path not found', detail: 'The path set in Settings does not exist: ' + set + '. No default installation was found either.' }; }
+    return { state: 'red', exe: '', label: 'Log Parser 2.2 not installed', detail: 'Install it from Microsoft (LogParser.msi) to enable free-form SQL. Everything else works without it.' };
+  };
 
   /* {files} expands to the FROM list of the current scope. */
   LP.TEMPLATES = [
@@ -7401,6 +7427,7 @@ var IISLA = IISLA || {};
           badge = UI.h('span', { className: 'badge' + (hc ? ' hot' : '') }, '' + st.idx.findings.length);
         }
         if (n[0] === 'grid' && st.store) { badge = UI.h('span', { className: 'badge' }, U.fmtNum(st.grid.view ? st.grid.view.length : st.store.n)); }
+        if (n[0] === 'logparser') { var lps = NS.logparser.status(st.settings); badge = UI.h('span', { className: 'tl-dot ' + lps.state, title: lps.label }); }
         nv.appendChild(UI.h('div', { className: 'nav-i' + (st.view === n[0] || (st.view === 'ipProfile' && n[0] === 'ips') || (st.view === 'uriProfile' && n[0] === 'uris') ? ' active' : ''), onclick: function () { A.nav(n[0]); } }, [n[1], badge]));
       }(A.NAV[i]));
     }
@@ -7907,7 +7934,7 @@ var IISLA = IISLA || {};
     function shots(cb) {
       var topIp = '', fi; // the client of the most severe client finding
       for (fi = 0; st.idx && fi < st.idx.findings.length && !topIp; fi++) { if (st.idx.findings[fi].entity === 'ip') { topIp = st.idx.findings[fi].key; } }
-      var seq = [['overview'], ['findings'], ['grid'], ['ipProfile', args.shotip || topIp || '203.0.113.45'], ['topn'], ['timeline'], ['uris'], ['sessions'], ['integrity'], ['home'], ['help']], k = 0;
+      var seq = [['overview'], ['findings'], ['grid'], ['ipProfile', args.shotip || topIp || '203.0.113.45'], ['topn'], ['timeline'], ['uris'], ['sessions'], ['integrity'], ['logparser'], ['home'], ['help']], k = 0;
       function next() {
         if (k >= seq.length) { cb(); return; }
         var s = seq[k++];
@@ -9169,9 +9196,20 @@ var IISLA = IISLA || {};
       if (cb) { cb(null, res); }
     }, token);
   };
+  /* Opens Microsoft's download page in the default browser after confirmation; audited as a network action. */
+  V.openLogParserDownload = function () {
+    var url = NS.logparser.DOWNLOAD_URL;
+    UI.confirm('Download Log Parser 2.2', 'This opens the official Microsoft download page in your default web browser:\n\n' + url + '\n\nDownload LogParser.msi (version 2.2.10, 1.4 MB), install it, then press Re-check. Opening the page is a network action from this workstation; the tool itself downloads and installs nothing.', function () {
+      try { U.shell().Run('explorer.exe "' + url + '"', 1, false); } catch (e) { UI.alert('Download Log Parser 2.2', 'The browser could not be started: ' + e.message + '\n\nOpen this address manually:\n' + url); return; }
+      if (C.cur) { C.audit('network.logParserDownloadPage', { url: url }); }
+    }, 'Open download page');
+  };
   V.logparser = function (main) {
-    var b = page(main, 'Log Parser 2.2', null, 'Ad-hoc SQL over the evidence with Microsoft Log Parser 2.2, if it is installed. The tool never downloads or installs it.');
-    var exe = NS.logparser.find(st.settings);
+    var b = page(main, 'Log Parser 2.2', null, 'Ad-hoc SQL over the evidence with Microsoft Log Parser 2.2, if it is installed. The tool itself never downloads or installs anything.');
+    var lps = NS.logparser.status(st.settings), exe = lps.exe;
+    b.appendChild(h('div', { className: 'lp-status' }, [UI.trafficLight(lps.state, lps.label), h('div', { className: 'lp-status-t' }, [h('b', null, lps.label), h('div', { className: 'muted small' }, lps.detail)]),
+      UI.btn('Download Log Parser 2.2...', V.openLogParserDownload, exe ? '' : 'primary', 'Opens the official Microsoft download page in your web browser'),
+      UI.btn('Re-check', function () { A.renderNav(); A.nav('logparser'); }, '', 'Look for LogParser.exe again (after installing it)')]));
     if (!exe) {
       var pin = UI.input(st.settings.logParserPath || '', { style: { width: '560px' }, placeholder: 'C:\\Program Files (x86)\\Log Parser 2.2\\LogParser.exe' });
       b.appendChild(h('p', null, 'LogParser.exe was not found. Checked: ' + NS.logparser.candidates(st.settings).join('; ')));

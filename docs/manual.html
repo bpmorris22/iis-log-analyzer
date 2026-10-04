@@ -97,7 +97,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <div class="layout">
 <nav class="toc" aria-label="Contents">
   <div class="brand">IIS Log Analyzer</div>
-  <div class="ver">Manual for version 1.1.1</div>
+  <div class="ver">Manual for version 1.1.2</div>
   <ol id="toc-list"></ol>
   <button class="theme-btn" id="themeBtn" type="button">Toggle light / dark</button>
 </nav>
@@ -107,7 +107,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <header class="hero">
   <h1>IIS Log Analyzer</h1>
   <p class="lead">Offline forensic analysis of Microsoft IIS W3C Extended logs, from a single HTML Application that runs on any Windows 10 or 11 workstation with nothing to install.</p>
-  <div class="chips"><span class="chip">Version 1.1.1</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
+  <div class="chips"><span class="chip">Version 1.1.2</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
 </header>
 
 <details class="toc-mobile"><summary>Contents</summary><ol id="toc-mobile-list"></ol></details>
@@ -299,7 +299,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
   <a class="shot" href="images/ipProfile.png"><img src="images/ipProfile.png" alt="IP profile of 203.0.113.45: class, request count, active period, status mix, rule hits, requests per day, top paths, rule hits table, user agents and window maxima" width="1600" height="947"></a>
   <figcaption>The profile of the demo attacker: 1,086 requests over two days, 99.9% successful, 1,326 rule hits across seven rules, and the peak of 421 login POSTs in one window.</figcaption>
 </figure>
-<p><em>Client IPs</em> lists every client in the index with class, requests, status mix, first and last time and rule hits. The IP profile shows activity per day, top paths, rule hits, user agents and window maxima (distinct paths in 5 minutes, login POSTs, 401 responses, user agents per day). From here you can load all of the client's rows, filter the grid or run an optional reverse-DNS lookup, which is the only network action in the tool and asks for confirmation first.</p>
+<p><em>Client IPs</em> lists every client in the index with class, requests, status mix, first and last time and rule hits. The IP profile shows activity per day, top paths, rule hits, user agents and window maxima (distinct paths in 5 minutes, login POSTs, 401 responses, user agents per day). From here you can load all of the client's rows, filter the grid or run an optional reverse-DNS lookup, which asks for confirmation first and is audited.</p>
 <h3>URI stems and URI profile</h3>
 <p>Every path with requests, clients, status mix and first-seen time. The profile shows who requested a path and when it first appeared; a new executable path in an upload directory is the classic web-shell signal.</p>
 <h3>Top-N</h3>
@@ -334,6 +334,18 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 
 <section id="logparser">
 <h2>Log Parser 2.2</h2>
+<figure>
+  <a class="shot" href="images/logparser.png"><img src="images/logparser.png" alt="Log Parser view on a workstation without Log Parser: a red traffic light with the status Log Parser 2.2 not installed, a Download Log Parser 2.2 button, a Re-check button, and a field for the LogParser.exe path; the navigation item shows a red dot" width="1600" height="947"></a>
+  <figcaption>The Log Parser tab when Log Parser is not installed: the traffic light is red, the navigation item carries a red dot, and the download button is highlighted.</figcaption>
+</figure>
+<p>A traffic light at the top of the tab, and a dot next to <em>Log Parser</em> in the navigation, show whether Log Parser can be used:</p>
+<div class="table-wrap"><table>
+<tr><th>Light</th><th>Meaning</th></tr>
+<tr><td class="sev" style="color:#2f9e5b">Green</td><td><code>LogParser.exe</code> was found; its path is shown.</td></tr>
+<tr><td class="sev medium">Amber</td><td>A path is set in Settings but no file exists there, and no default installation was found.</td></tr>
+<tr><td class="sev high">Red</td><td>Log Parser 2.2 is not installed.</td></tr>
+</table></div>
+<p><em>Download Log Parser 2.2&hellip;</em> opens Microsoft's official download page (<code>LogParser.msi</code>, version 2.2.10) in your default web browser after a confirmation; the action is recorded in the audit log. Install it, then choose <em>Re-check</em>. The tool itself never downloads or installs anything. If Log Parser is installed elsewhere, enter the path to <code>LogParser.exe</code> and choose <em>Save path</em>.</p>
 <p>If Microsoft Log Parser 2.2 is installed (default <code>Program Files (x86)\Log Parser 2.2</code>, or a path set in Settings), the <em>Log Parser</em> view runs SQL over the current site. <code>{files}</code> in a query expands to the evidence files. Templates cover the top clients, hourly volume, status breakdown, executable paths answered to non-internal clients, all requests from one client, 5xx errors and the slowest requests. The query is passed through a query file, never on a command line; results appear in a grid, can be exported with a hash, and every query is audited.</p>
 <div class="callout"><p>The bridge has been tested with a stand-in for <code>LogParser.exe</code>, not with the real program.</p></div>
 </section>
@@ -448,7 +460,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
   <li>SHA-256 values are computed out of process and compared with Velociraptor records where present; re-hashing reports changed files.</li>
   <li><code>audit.log</code> records case actions, evidence opened, scans (with engine, rule fingerprint, disabled rules and time zone), hashes, loads, every grid filter, tags, dispositions, Log Parser queries, exports and reports with their hashes. The report reproduces it.</li>
   <li>The rule-set fingerprint covers the rule text and which rules are enabled, so an index or report identifies exactly the rules that produced it.</li>
-  <li>The only network action is the optional reverse-DNS lookup of one IP, behind an operational-security warning, and it is audited.</li>
+  <li>The tool makes no network connections of its own. The only network actions are an optional reverse-DNS lookup of one IP, behind an operational-security warning, and opening the Log Parser download page in your browser on request; both ask for confirmation and are audited.</li>
   <li>Text is read as Windows-1252, which maps every byte losslessly; lines that are valid UTF-8 (the IIS default) are shown decoded. Raw exports always contain the original bytes.</li>
 </ul>
 </section>
@@ -522,7 +534,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 </ul>
 </section>
 
-<footer>IIS Log Analyzer 1.1.1 &middot; manual updated 2026-10-03. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
+<footer>IIS Log Analyzer 1.1.2 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
 </div>
 </main>
 </div>
