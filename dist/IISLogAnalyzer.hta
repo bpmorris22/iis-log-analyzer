@@ -22,7 +22,8 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #toolbar .brand { font-weight: 600; font-size: 14px; margin-right: 14px; letter-spacing: .2px; }
 #toolbar .brand-ver { font-weight: normal; font-size: 11px; margin-left: 2px; padding: 1px 5px; border-radius: 3px; background: rgba(255, 255, 255, .14); cursor: pointer; }
 #toolbar .brand-ver:hover { background: rgba(255, 255, 255, .28); }
-#toolbar .brand-upd { font-weight: 600; font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 3px; background: #38a169; color: #fff; cursor: pointer; }
+#toolbar .brand-ver.old { background: #ecc94b; color: #1a202c; font-weight: 600; }
+#toolbar .brand-ver.old:hover { background: #f6e05e; }
 .upd-notes { white-space: pre-wrap; max-height: 260px; overflow: auto; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px 8px; margin: 8px 0; font-size: 12px; }
 #toolbar .btn { background: #2f4a66; color: #fff; border-color: #3d5d80; margin-right: 4px; }
 #toolbar .btn:hover { background: #3b5a7c; }
@@ -2664,7 +2665,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util = {};
 
-  NS.VERSION = '1.3.1';
+  NS.VERSION = '1.3.2';
   NS.bootWarnings = NS.bootWarnings || [];
   /* Debug trace to %TEMP%\iisla-trace.log (enabled with /trace on the command line or always during autotest). */
   NS.traceOn = false;
@@ -7562,6 +7563,8 @@ var IISLA = IISLA || {};
       if (err) { res.errors.push('latest: ' + err.message); done(); return; }
       res.latest = { version: info.version, tag: info.tag, url: info.url, asset: info.asset, shaUrl: info.shaUrl };
       res.newer = UP.compare(info.version, UP.current()) > 0;
+      st.updateInfo = info; A.renderToolbar();
+      var bv = document.querySelector('#toolbar .brand-ver'); res.brandVerClass = bv ? bv.className : ''; res.brandVerTitle = bv ? bv.title : '';
       if (!args.updatereplace || !res.newer) { done(); return; }
       var target = UP.selfPath();
       UP.download(info, target + '.download', U.env('TEMP'), function (e2, d) {
@@ -7674,10 +7677,13 @@ var IISLA = IISLA || {};
   A.renderToolbar = function () {
     var tb = st.el.toolbar;
     UI.clear(tb);
-    var ui = st.updateInfo, newer = ui && NS.update.compare(ui.version, NS.update.current()) > 0;
+    // Amber version label when a newer release is known: from this session's check, or the last check remembered in
+    // settings (so it stays amber after a restart without contacting GitHub again).
+    var ui = st.updateInfo, known = ui || st.settings.updateLatest || null, newer = !!(known && NS.update.compare(known.version, NS.update.current()) > 0);
     tb.appendChild(UI.h('span', { className: 'brand' }, ['IIS Log Analyzer', ' ',
-      UI.h('span', { className: 'brand-ver', title: 'Version ' + NS.VERSION + '. Click to check GitHub for a newer version.', onclick: function () { NS.views.checkUpdates(false); } }, 'v' + NS.VERSION),
-      newer ? UI.h('span', { className: 'brand-upd', title: 'Version ' + ui.version + ' is available. Click for details.', onclick: function () { NS.views.updateDialog(ui); } }, 'update ' + ui.version) : null]));
+      UI.h('span', { className: 'brand-ver' + (newer ? ' old' : ''),
+        title: newer ? 'Out of date: version ' + known.version + ' is available' + (ui ? '' : ' (found ' + ('' + (known.checked || '')).substr(0, 10) + ')') + '. Click to update.' : 'Version ' + NS.VERSION + '. Click to check GitHub for a newer version.',
+        onclick: function () { if (newer && ui) { NS.views.updateDialog(ui); } else { NS.views.checkUpdates(false); } } }, 'v' + NS.VERSION)]));
     tb.appendChild(UI.btn('Open evidence\u2026', function () { A.nav('home'); }, '', 'Choose case and evidence folder'));
     tb.appendChild(UI.btn('Scan\u2026', function () { NS.views.scanDialog(); }, '', 'Index all selected log files (streaming)'));
     tb.appendChild(UI.btn('Load rows\u2026', function () { NS.views.loadDialog(); }, '', 'Load rows into the grid'));
@@ -9512,6 +9518,8 @@ var IISLA = IISLA || {};
           return;
         }
         st.updateInfo = info;
+        st.settings.updateLatest = { version: info.version, checked: U.nowIso() }; // remembered so the label stays amber after a restart
+        try { C.saveSettings(st.settings); } catch (eS) { }
         A.renderToolbar();
         if (UP.compare(info.version, UP.current()) <= 0) { if (!auto) { UI.alert('Check for updates', 'You have the latest version (' + UP.current() + ').'); } return; }
         V.updateDialog(info);

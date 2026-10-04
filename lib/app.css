@@ -6,7 +6,8 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #toolbar .brand { font-weight: 600; font-size: 14px; margin-right: 14px; letter-spacing: .2px; }
 #toolbar .brand-ver { font-weight: normal; font-size: 11px; margin-left: 2px; padding: 1px 5px; border-radius: 3px; background: rgba(255, 255, 255, .14); cursor: pointer; }
 #toolbar .brand-ver:hover { background: rgba(255, 255, 255, .28); }
-#toolbar .brand-upd { font-weight: 600; font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 3px; background: #38a169; color: #fff; cursor: pointer; }
+#toolbar .brand-ver.old { background: #ecc94b; color: #1a202c; font-weight: 600; }
+#toolbar .brand-ver.old:hover { background: #f6e05e; }
 .upd-notes { white-space: pre-wrap; max-height: 260px; overflow: auto; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px 8px; margin: 8px 0; font-size: 12px; }
 #toolbar .btn { background: #2f4a66; color: #fff; border-color: #3d5d80; margin-right: 4px; }
 #toolbar .btn:hover { background: #3b5a7c; }

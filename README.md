@@ -61,7 +61,7 @@ The raw line bundle export writes each selected line byte-for-byte as stored in 
 
 ## Updates
 
-The version is shown next to the name in the top-left corner. Click it, or use **Check for updates...** on the Help page or in Settings, to ask GitHub (`api.github.com`) for the latest release; the check asks for confirmation and is audited. Automatic checks at start-up are off by default and can be enabled in Settings.
+The version is shown next to the name in the top-left corner and turns amber when a newer release is known (the last check result is remembered across restarts). Click it, or use **Check for updates...** on the Help page or in Settings, to ask GitHub (`api.github.com`) for the latest release; the check asks for confirmation and is audited. Automatic checks at start-up are off by default and can be enabled in Settings.
 
 If a newer release exists, **Download and replace** fetches the new single-file HTA, verifies its size, its SHA-256 against the digest GitHub publishes for the release asset, and the version inside it, then replaces the running file, keeps the old one as `IISLogAnalyzer-<old version>.bak.hta`, and offers a restart. Nothing changes if a check fails. A copy running from the source folder gets the verified HTA in its Downloads folder instead.
 
