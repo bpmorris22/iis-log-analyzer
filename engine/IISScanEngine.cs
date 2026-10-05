@@ -1209,7 +1209,7 @@ namespace IISLA
     public sealed class StemRec { public double n, first, last, fFile, fLine, ipOv, pubN, post, ok, okPub, s4, s5; public int ipN; public string fIp, raw; public bool exec, upDir; public OMap<double> ips = new OMap<double>(), sts = new OMap<double>(); }
     public sealed class UaRec { public double n, first, last, fFile, fLine, ipOv, pubN, s2, s3, s4, s5, post, exec, xok, hits; public int ipN; public string fam, fIp; public OMap<double> ips = new OMap<double>(); }
     public sealed class UserRec { public double n, first, last, fFile, fLine, pub; public int ipN; public OMap<double> ips = new OMap<double>(); }
-    public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
+    public sealed class RuleHit { public double n, first, last, sr, xs; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
     public sealed class EnumRec { public int n; public HashSet<string> q = new HashSet<string>(StringComparer.Ordinal); }
     public sealed class Win
     {
@@ -1231,7 +1231,7 @@ namespace IISLA
         const double HOUR = 3600000, DAY = 86400000;
         // inputs
         List<FileRec> files = new List<FileRec>(); Deriver D; Evaluator ev; int chunk; double retention, ipCap, stemCap, uaCap, gapMs;
-        int IP_STEM_CAP, IP_UA_CAP, WIN_PURGE_ROWS, KEEP_RAW; double s7win, a1win, a2win, a2count, a4rows, s1dayMin, s1ratio;
+        int IP_STEM_CAP, IP_UA_CAP, WIN_PURGE_ROWS, KEEP_RAW, KEEP_RAW_STRONG, KEEP_STRONG_EXTRA; double s7win, a1win, a2win, a2count, a4rows, s1dayMin, s1ratio;
         string bhStart, bhEnd; double bhStartMin, bhEndMin;
         Dictionary<long, string> statusKeys = new Dictionary<long, string>(); Dictionary<double, string> numStrs = new Dictionary<double, string>();
         string lastSip, lastSport; double lastPort = double.NaN; string lastDk, lastHh, lastHk; HashSet<int> bhDays = new HashSet<int>(); double[] tzT; double[] tzO;
@@ -1291,6 +1291,7 @@ namespace IISLA
             tzT = new double[tt.Count]; tzO = new double[to.Count]; for (int i = 0; i < tt.Count; i++) { tzT[i] = (double)tt[i]; tzO[i] = (double)to[i]; }
             var k = (Dictionary<string, object>)job["consts"];
             IP_STEM_CAP = (int)D0(k, "IP_STEM_CAP", 32); IP_UA_CAP = (int)D0(k, "IP_UA_CAP", 8); WIN_PURGE_ROWS = (int)D0(k, "WIN_PURGE_ROWS", 400000); KEEP_RAW = (int)D0(k, "KEEP_RAW", 200);
+            KEEP_RAW_STRONG = (int)D0(k, "KEEP_RAW_STRONG", 200); KEEP_STRONG_EXTRA = (int)D0(k, "KEEP_STRONG_EXTRA", 1000);
             var p = (Dictionary<string, object>)job["scanParams"];
             s7win = D0(p, "s7win", 300000); a1win = D0(p, "a1win", 600000); a2win = D0(p, "a2win", 600000); a2count = D0(p, "a2count", 10);
             a4rows = D0(p, "a4rows", 50); s1dayMin = D0(p, "s1dayMin", 100); s1ratio = D0(p, "s1ratio", 0.8);
@@ -1592,7 +1593,14 @@ namespace IISLA
                 h.n++; if (t > h.last) h.last = t; if (t < h.first) h.first = t;
                 h.sev = Evaluator.MaxSev(h.sev, ev.hitSev[j]);
                 h.sx[scl >= 2 && scl <= 5 ? (int)scl - 2 : 4]++; // response mix: 2xx, 3xx, 4xx, 5xx, other
-                if (h.kept.Count < retention) h.kept.Add(new object[] { (double)r.fileId, (double)r.lineNo, t, ip, h.kept.Count < KEEP_RAW ? (r.raw.Length > 1500 ? r.raw.Substring(0, 1500) : r.raw) : "" });
+                // [file, line, ts, ip, raw, status, graded severity]; 2xx/5xx hits keep raw lines and pointers preferentially (as lib/scan.js)
+                bool strong = scl == 2 || scl == 5, full = h.kept.Count >= retention;
+                if (!full || (strong && h.xs < KEEP_STRONG_EXTRA))
+                {
+                    bool keepRaw = h.kept.Count < KEEP_RAW || (strong && h.sr < KEEP_RAW_STRONG);
+                    if (keepRaw && strong) h.sr++; if (full) h.xs++;
+                    h.kept.Add(new object[] { (double)r.fileId, (double)r.lineNo, t, ip, keepRaw ? (r.raw.Length > 1500 ? r.raw.Substring(0, 1500) : r.raw) : "", st, ev.hitSev[j] });
+                }
                 if (h.ips.TryGet(ip, out cur)) h.ips[ip] = cur + 1; else if (h.ipN < 1000) { h.ips[ip] = 1; h.ipN++; }
                 if (h.stems.TryGet(si.key, out cur)) h.stems[si.key] = cur + 1; else if (h.stN < 1000) { h.stems[si.key] = 1; h.stN++; }
                 Inc(rec.hits, id);
@@ -1782,9 +1790,10 @@ namespace IISLA
                 foreach (var k in ruleHits.Keys())
                 {
                     var h = ruleHits[k]; j.Key(k).ObjStart().KNum("n", h.n).KStr("sev", h.sev).KNum("first", h.first).KNum("last", h.last);
-                    j.Key("kept").ArrStart(); foreach (var e in h.kept) { j.ArrStart().Num((double)e[0]).Num((double)e[1]).Num((double)e[2]).Str((string)e[3]).Str((string)e[4]).EndArr(); } j.EndArr();
+                    j.Key("kept").ArrStart(); foreach (var e in h.kept) { j.ArrStart().Num((double)e[0]).Num((double)e[1]).Num((double)e[2]).Str((string)e[3]).Str((string)e[4]).Num((double)e[5]).Str((string)e[6]).EndArr(); } j.EndArr();
                     MapNum(j, "ips", h.ips); j.KNum("ipN", h.ipN); MapNum(j, "stems", h.stems); j.KNum("stN", h.stN);
                     j.Key("sx").ArrStart(); foreach (var x in h.sx) j.Num(x); j.EndArr();
+                    j.KNum("sr", h.sr).KNum("xs", h.xs);
                     j.EndObj();
                 }
                 j.EndObj();

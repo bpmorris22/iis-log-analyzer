@@ -163,6 +163,22 @@ function check(name, ok, detail) { console.log((ok ? 'PASS ' : 'FAIL ') + name +
     fp2.line('2026-01-01 00:00:00 203.0.113.7 GET / ${jndi:ldap://x/a} 302', r2); sc.row(r2, frec);
     for (i = 0; i < 200; i++) { fp2.line('2026-01-01 00:00:01 10.0.0.1 GET /portal/page.aspx agent-' + i + ' 200', r2); sc.row(r2, frec); }
     check('UA with rule hits kept at the index cap', !!sc.idx.uas['${jndi:ldap://x/a}'] && sc.idx.caps.uaEvicted > 0, 'evicted ' + sc.idx.caps.uaEvicted);
+    // 9. finding examples (1.4.1): pointers carry status and graded severity; 2xx/5xx hits first; kept past the caps
+    var pk = [[0, 1, 1, 'a', 'r1', 404, 'low'], [0, 2, 2, 'a', 'r2', 404, 'low'], [0, 3, 3, 'b', 'r3', 200, 'high'], [0, 4, 4, 'a', 'r4', 302, 'medium'], [0, 5, 5, 'a', 'r5', 500, 'high']];
+    var pe = NS.scan.pickExamples(pk, 'high');
+    check('examples: 2xx/5xx first, then by hit severity, log order within a rank', pe.map(function (x) { return x[1]; }).join(',') === '3,5,4,1,2', pe.map(function (x) { return x[1]; }).join(','));
+    check('examples: one client only', NS.scan.pickExamples(pk, 'high', 'a').map(function (x) { return x[1]; }).join(',') === '5,4,1,2');
+    var sc2 = new NS.scan.Scanner({ site: site, settings: U.extend({}, settings, { ruleHitRetention: 300 }), ruleset: ruleset, lists: lists });
+    var fr2 = sc2.idx.files[0], r3 = NS.parser.newRow(), fp3 = new NS.parser.FileParser(0);
+    U.extend(fr2, { rows: 0, malformedSamples: [], backSamples: [], s500: [], firstTs: 0, minTs: 0, maxTs: 0, lastTs: 0, nonAscii: 0, decodeErr: 0, backSteps: 0 });
+    fp3.line('#Fields: date time c-ip cs-method cs-uri-stem sc-status', r3);
+    for (i = 0; i < 400; i++) { fp3.line('2026-01-01 00:00:01 203.0.113.8 GET /uploads/shell.php 404', r3); sc2.row(r3, fr2); }
+    fp3.line('2026-01-01 00:00:02 203.0.113.8 GET /uploads/shell.php 200', r3); sc2.row(r3, fr2);
+    var hk = sc2.idx.ruleHits['R-WS-004'], last = hk.kept[hk.kept.length - 1];
+    check('successful hit kept beyond the retention cap', hk.kept.length === 301 && last[5] === 200 && last[6] === 'high' && hk.xs === 1, 'kept ' + hk.kept.length);
+    check('successful hit keeps its raw line beyond the first 200', !!last[4] && hk.kept[250][4] === '' && hk.sr === 1);
+    var fw = NS.scan.buildFindings(sc2.idx, ruleset, settings).filter(function (f) { return f.ruleId === 'R-WS-004' && f.entity === 'rows'; })[0];
+    check('finding shows the 200 as its first example', !!fw && fw.severity === 'high' && fw.examples[0][5] === 200 && fw.examples.length === 20);
     check('UA record has status mix and first occurrence', sc.idx.uas['${jndi:ldap://x/a}'].s3 === 1 && sc.idx.uas['${jndi:ldap://x/a}'].hits === 1 && sc.idx.uas['${jndi:ldap://x/a}'].fIp === '203.0.113.7');
   }());
   fs.rmSync(tmp, { recursive: true, force: true });

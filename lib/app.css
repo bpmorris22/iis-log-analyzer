@@ -173,6 +173,8 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
 .rl.dir { color: #718096; }
 .rl.clickable { cursor: pointer; }
 .ln { display: inline-block; min-width: 52px; color: #a0aec0; margin-right: 8px; text-align: right; }
+.exst { display: inline-block; min-width: 30px; margin-right: 8px; font-weight: 600; color: #718096; }
+.exst.s2 { color: #2f855a; } .exst.s5 { color: #c53030; } .exst.s3 { color: #b7791f; }
 /* dialogs */
 .overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(26, 32, 44, .45); z-index: 100; }
 .dialog { position: absolute; left: 50%; top: 8%; -ms-transform: translateX(-50%); transform: translateX(-50%); background: #fff; border-radius: 5px; box-shadow: 0 8px 30px rgba(0, 0, 0, .35); max-width: 96%; }

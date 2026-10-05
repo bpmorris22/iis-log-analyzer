@@ -189,6 +189,8 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
 .rl.dir { color: #718096; }
 .rl.clickable { cursor: pointer; }
 .ln { display: inline-block; min-width: 52px; color: #a0aec0; margin-right: 8px; text-align: right; }
+.exst { display: inline-block; min-width: 30px; margin-right: 8px; font-weight: 600; color: #718096; }
+.exst.s2 { color: #2f855a; } .exst.s5 { color: #c53030; } .exst.s3 { color: #b7791f; }
 /* dialogs */
 .overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(26, 32, 44, .45); z-index: 100; }
 .dialog { position: absolute; left: 50%; top: 8%; -ms-transform: translateX(-50%); transform: translateX(-50%); background: #fff; border-radius: 5px; box-shadow: 0 8px 30px rgba(0, 0, 0, .35); max-width: 96%; }
@@ -1666,7 +1668,7 @@ namespace IISLA
     public sealed class StemRec { public double n, first, last, fFile, fLine, ipOv, pubN, post, ok, okPub, s4, s5; public int ipN; public string fIp, raw; public bool exec, upDir; public OMap<double> ips = new OMap<double>(), sts = new OMap<double>(); }
     public sealed class UaRec { public double n, first, last, fFile, fLine, ipOv, pubN, s2, s3, s4, s5, post, exec, xok, hits; public int ipN; public string fam, fIp; public OMap<double> ips = new OMap<double>(); }
     public sealed class UserRec { public double n, first, last, fFile, fLine, pub; public int ipN; public OMap<double> ips = new OMap<double>(); }
-    public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
+    public sealed class RuleHit { public double n, first, last, sr, xs; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
     public sealed class EnumRec { public int n; public HashSet<string> q = new HashSet<string>(StringComparer.Ordinal); }
     public sealed class Win
     {
@@ -1688,7 +1690,7 @@ namespace IISLA
         const double HOUR = 3600000, DAY = 86400000;
         // inputs
         List<FileRec> files = new List<FileRec>(); Deriver D; Evaluator ev; int chunk; double retention, ipCap, stemCap, uaCap, gapMs;
-        int IP_STEM_CAP, IP_UA_CAP, WIN_PURGE_ROWS, KEEP_RAW; double s7win, a1win, a2win, a2count, a4rows, s1dayMin, s1ratio;
+        int IP_STEM_CAP, IP_UA_CAP, WIN_PURGE_ROWS, KEEP_RAW, KEEP_RAW_STRONG, KEEP_STRONG_EXTRA; double s7win, a1win, a2win, a2count, a4rows, s1dayMin, s1ratio;
         string bhStart, bhEnd; double bhStartMin, bhEndMin;
         Dictionary<long, string> statusKeys = new Dictionary<long, string>(); Dictionary<double, string> numStrs = new Dictionary<double, string>();
         string lastSip, lastSport; double lastPort = double.NaN; string lastDk, lastHh, lastHk; HashSet<int> bhDays = new HashSet<int>(); double[] tzT; double[] tzO;
@@ -1748,6 +1750,7 @@ namespace IISLA
             tzT = new double[tt.Count]; tzO = new double[to.Count]; for (int i = 0; i < tt.Count; i++) { tzT[i] = (double)tt[i]; tzO[i] = (double)to[i]; }
             var k = (Dictionary<string, object>)job["consts"];
             IP_STEM_CAP = (int)D0(k, "IP_STEM_CAP", 32); IP_UA_CAP = (int)D0(k, "IP_UA_CAP", 8); WIN_PURGE_ROWS = (int)D0(k, "WIN_PURGE_ROWS", 400000); KEEP_RAW = (int)D0(k, "KEEP_RAW", 200);
+            KEEP_RAW_STRONG = (int)D0(k, "KEEP_RAW_STRONG", 200); KEEP_STRONG_EXTRA = (int)D0(k, "KEEP_STRONG_EXTRA", 1000);
             var p = (Dictionary<string, object>)job["scanParams"];
             s7win = D0(p, "s7win", 300000); a1win = D0(p, "a1win", 600000); a2win = D0(p, "a2win", 600000); a2count = D0(p, "a2count", 10);
             a4rows = D0(p, "a4rows", 50); s1dayMin = D0(p, "s1dayMin", 100); s1ratio = D0(p, "s1ratio", 0.8);
@@ -2049,7 +2052,14 @@ namespace IISLA
                 h.n++; if (t > h.last) h.last = t; if (t < h.first) h.first = t;
                 h.sev = Evaluator.MaxSev(h.sev, ev.hitSev[j]);
                 h.sx[scl >= 2 && scl <= 5 ? (int)scl - 2 : 4]++; // response mix: 2xx, 3xx, 4xx, 5xx, other
-                if (h.kept.Count < retention) h.kept.Add(new object[] { (double)r.fileId, (double)r.lineNo, t, ip, h.kept.Count < KEEP_RAW ? (r.raw.Length > 1500 ? r.raw.Substring(0, 1500) : r.raw) : "" });
+                // [file, line, ts, ip, raw, status, graded severity]; 2xx/5xx hits keep raw lines and pointers preferentially (as lib/scan.js)
+                bool strong = scl == 2 || scl == 5, full = h.kept.Count >= retention;
+                if (!full || (strong && h.xs < KEEP_STRONG_EXTRA))
+                {
+                    bool keepRaw = h.kept.Count < KEEP_RAW || (strong && h.sr < KEEP_RAW_STRONG);
+                    if (keepRaw && strong) h.sr++; if (full) h.xs++;
+                    h.kept.Add(new object[] { (double)r.fileId, (double)r.lineNo, t, ip, keepRaw ? (r.raw.Length > 1500 ? r.raw.Substring(0, 1500) : r.raw) : "", st, ev.hitSev[j] });
+                }
                 if (h.ips.TryGet(ip, out cur)) h.ips[ip] = cur + 1; else if (h.ipN < 1000) { h.ips[ip] = 1; h.ipN++; }
                 if (h.stems.TryGet(si.key, out cur)) h.stems[si.key] = cur + 1; else if (h.stN < 1000) { h.stems[si.key] = 1; h.stN++; }
                 Inc(rec.hits, id);
@@ -2239,9 +2249,10 @@ namespace IISLA
                 foreach (var k in ruleHits.Keys())
                 {
                     var h = ruleHits[k]; j.Key(k).ObjStart().KNum("n", h.n).KStr("sev", h.sev).KNum("first", h.first).KNum("last", h.last);
-                    j.Key("kept").ArrStart(); foreach (var e in h.kept) { j.ArrStart().Num((double)e[0]).Num((double)e[1]).Num((double)e[2]).Str((string)e[3]).Str((string)e[4]).EndArr(); } j.EndArr();
+                    j.Key("kept").ArrStart(); foreach (var e in h.kept) { j.ArrStart().Num((double)e[0]).Num((double)e[1]).Num((double)e[2]).Str((string)e[3]).Str((string)e[4]).Num((double)e[5]).Str((string)e[6]).EndArr(); } j.EndArr();
                     MapNum(j, "ips", h.ips); j.KNum("ipN", h.ipN); MapNum(j, "stems", h.stems); j.KNum("stN", h.stN);
                     j.Key("sx").ArrStart(); foreach (var x in h.sx) j.Num(x); j.EndArr();
+                    j.KNum("sr", h.sr).KNum("xs", h.xs);
                     j.EndObj();
                 }
                 j.EndObj();
@@ -2857,7 +2868,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util = {};
 
-  NS.VERSION = '1.4.0';
+  NS.VERSION = '1.4.1';
   NS.bootWarnings = NS.bootWarnings || [];
   /* Debug trace to %TEMP%\iisla-trace.log (enabled with /trace on the command line or always during autotest). */
   NS.traceOn = false;
@@ -4814,11 +4825,14 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util, IO = NS.io, P = NS.parser, R = NS.rules, S = NS.scan = {};
 
-  S.SCHEMA = 8; // 8: per-user-agent status mix, executable successes, rule-hit rows, public clients and first occurrence; 7: outcome-graded severities, response mix per rule; 4: ASCII-only JSON; 5: windows-1252 + UTF-8 recovery, DST zones; 6: strict dates, resume state, rule-set fingerprint incl. enabled rules
+  S.SCHEMA = 9; // 9: rule-hit pointers carry status and graded severity, successful hits kept preferentially; 8: per-user-agent status mix, executable successes, rule-hit rows, public clients and first occurrence; 7: outcome-graded severities, response mix per rule; 4: ASCII-only JSON; 5: windows-1252 + UTF-8 recovery, DST zones; 6: strict dates, resume state, rule-set fingerprint incl. enabled rules
   S.IP_STEM_CAP = 32;   // distinct paths tracked per client (count continues as overflow)
   S.IP_UA_CAP = 8;      // distinct user agents tracked per client
   S.WIN_PURGE_ROWS = 400000; // purge idle per-client windows this often
   S.KEEP_RAW = 200;          // rule-hit pointers that also keep the raw line (the rest keep pointers only)
+  S.KEEP_RAW_STRONG = 200;   // further raw lines kept per rule for hits answered 2xx or 5xx
+  S.KEEP_STRONG_EXTRA = 1000; // pointers kept per rule beyond the retention cap for hits answered 2xx or 5xx
+  S.EXAMPLES = 20;           // example rows per finding
   S.GROUP_AT = 25;           // per rule, entities beyond this many are folded into one summary finding
   var HOUR = 3600000, DAY = 86400000;
 
@@ -5146,11 +5160,19 @@ var IISLA = IISLA || {};
       for (j = 0; j < nh; j++) {
         id = ev.hits[j];
         h = idx.ruleHits[id];
-        if (!h) { h = idx.ruleHits[id] = { n: 0, sev: ev.hitSev[j], first: t, last: t, kept: [], ips: U.newMap(), ipN: 0, stems: U.newMap(), stN: 0, sx: [0, 0, 0, 0, 0] }; }
+        if (!h) { h = idx.ruleHits[id] = { n: 0, sev: ev.hitSev[j], first: t, last: t, kept: [], ips: U.newMap(), ipN: 0, stems: U.newMap(), stN: 0, sx: [0, 0, 0, 0, 0], sr: 0, xs: 0 }; }
         h.n++; if (t > h.last) { h.last = t; } if (t < h.first) { h.first = t; }
         h.sev = R.maxSev(h.sev, ev.hitSev[j]);
         h.sx[scl >= 2 && scl <= 5 ? scl - 2 : 4]++; // response mix: 2xx, 3xx, 4xx, 5xx, other
-        if (h.kept.length < this.retention) { h.kept.push([r.fileId, r.lineNo, t, U.own(ip), h.kept.length < S.KEEP_RAW ? U.own(r.raw.length > 1500 ? r.raw.substr(0, 1500) : r.raw) : '']); }
+        // Pointers [file, line, ts, ip, raw, status, graded severity] in log order. Hits answered 2xx or 5xx (the request
+        // reached a handler or broke it) also keep their raw line beyond the first KEEP_RAW, and their pointer beyond the
+        // retention cap, so a finding can show its successful rows even after thousands of failed probes.
+        var strong = scl === 2 || scl === 5, full = h.kept.length >= this.retention;
+        if (!full || (strong && h.xs < S.KEEP_STRONG_EXTRA)) {
+          var keepRaw = h.kept.length < S.KEEP_RAW || (strong && h.sr < S.KEEP_RAW_STRONG);
+          if (keepRaw && strong) { h.sr++; } if (full) { h.xs++; }
+          h.kept.push([r.fileId, r.lineNo, t, U.own(ip), keepRaw ? U.own(r.raw.length > 1500 ? r.raw.substr(0, 1500) : r.raw) : '', st, ev.hitSev[j]]);
+        }
         if (h.ips[ip] !== undefined) { h.ips[ip]++; } else if (h.ipN < 1000) { h.ips[ip] = 1; h.ipN++; }
         if (h.stems[si.key] !== undefined) { h.stems[si.key]++; } else if (h.stN < 1000) { h.stems[si.key] = 1; h.stN++; }
         inc(rec.hits, id);
@@ -5294,12 +5316,7 @@ var IISLA = IISLA || {};
     idx.findingsRulesetHash = rs.hash; // which rule set (text + enabled rules) these findings reflect
     function en(id) { var r = rs.byId[id]; return r && r.enabled ? r : null; }
     function pr(id, key, d) { var r = rs.byId[id]; return r && r.params && r.params[key] !== undefined ? r.params[key] : d; }
-    function ipExamples(id, ip) {
-      var h = idx.ruleHits[id], ex = [], j;
-      if (!h) { return ex; }
-      for (j = 0; j < h.kept.length && ex.length < 20; j++) { if (h.kept[j][3] === ip) { ex.push(h.kept[j]); } }
-      return ex;
-    }
+    function ipExamples(id, ip) { var h = idx.ruleHits[id]; return h ? S.pickExamples(h.kept, h.sev, ip) : []; }
     // --- row rule summaries ---
     for (rid in idx.ruleHits) {
       rule = rs.byId[rid];
@@ -5307,7 +5324,7 @@ var IISLA = IISLA || {};
       var h = idx.ruleHits[rid];
       f = R.newFinding(rule, 'rows', rid, h.sev);
       f.count = h.n; f.first = h.first; f.last = h.last; f.ips = topKeys(h.ips, 25); f.stems = topKeys(h.stems, 25);
-      f.examples = h.kept.slice(0, 20); f.kept = h.kept.length;
+      f.examples = S.pickExamples(h.kept, h.sev); f.kept = h.kept.length;
       f.detail = U.fmtNum(h.n) + ' matching rows from ' + (h.ipN >= 1000 ? '1000+' : h.ipN) + ' client(s); ' + (h.stN >= 1000 ? '1000+' : h.stN) + ' distinct path(s).';
       var sx = h.sx || [0, 0, 0, 0, 0], mix = [], SXL = ['2xx', '3xx', '4xx', '5xx', 'other'], q;
       f.statusMix = {}; for (q = 0; q < 5; q++) { f.statusMix[SXL[q]] = sx[q]; if (sx[q]) { mix.push(U.fmtNum(sx[q]) + ' ' + SXL[q]); } }
@@ -5412,6 +5429,21 @@ var IISLA = IISLA || {};
     // --- integrity ---
     S.integrityFindings(idx, rs, out, en, pr);
     return R.sortFindings(S.groupFindings(out, rs));
+  };
+
+  /* Example rows of a finding: the hits that explain its severity first. Rank: answered 2xx or 5xx (reached or broke a
+   * handler) first, then by the graded severity of the hit (so 3xx before 4xx for graded rules), log order within a rank.
+   * ip limits the examples to one client. */
+  S.pickExamples = function (kept, sev, ip) {
+    var ranked = [], i, k, c;
+    for (i = 0; i < kept.length; i++) {
+      k = kept[i];
+      if (ip && k[3] !== ip) { continue; }
+      c = Math.floor(k[5] / 100);
+      ranked.push({ k: k, i: i, r: (c === 2 || c === 5 ? 10 : 0) + (R.SEV[k[6]] || 0) });
+    }
+    ranked.sort(function (a, b) { return b.r - a.r || a.i - b.i; });
+    return ranked.slice(0, S.EXAMPLES).map(function (x) { return x.k; });
   };
 
   /* R-UA-001 (outdated browser reaching executable handlers) and R-UA-002 (spoofed, malformed or automation user agent). */
@@ -5617,7 +5649,7 @@ var IISLA = IISLA || {};
         methodsValid: U.METHODS_VALID, regex: regex, uaFamilies: fams },
       settings: { chunkChars: s.chunkChars || 4194304, ruleHitRetention: s.ruleHitRetention || 50000, ipCap: s.indexCaps.ips, stemCap: s.indexCaps.stems,
         uaCap: s.indexCaps.uas, gapMs: sp.gapMs, businessHours: s.businessHours, internalCidrs: s.internalCidrs || [], allowlist: U.getAllowlist(), testNetsPublic: U.testNetsPublic() },
-      consts: { IP_STEM_CAP: S.IP_STEM_CAP, IP_UA_CAP: S.IP_UA_CAP, WIN_PURGE_ROWS: S.WIN_PURGE_ROWS, KEEP_RAW: S.KEEP_RAW },
+      consts: { IP_STEM_CAP: S.IP_STEM_CAP, IP_UA_CAP: S.IP_UA_CAP, WIN_PURGE_ROWS: S.WIN_PURGE_ROWS, KEEP_RAW: S.KEEP_RAW, KEEP_RAW_STRONG: S.KEEP_RAW_STRONG, KEEP_STRONG_EXTRA: S.KEEP_STRONG_EXTRA },
       scanParams: { s7win: sp.s7win, a1win: sp.a1win, a2win: sp.a2win, a2count: sp.a2count, a4rows: sp.a4rows, s1dayMin: sp.s1dayMin, s1ratio: sp.s1ratio },
       tz: { id: zone.id, t: zone.table.t, o: zone.table.o },
       output: o.output, progress: o.progress, cancel: o.cancel
@@ -7740,7 +7772,7 @@ var IISLA = IISLA || {};
         ['Detail', f.detail], ['ATT&CK', (f.attack || []).join(', ')], ['Disposition', (d ? d.state + (d.note ? ' - ' + d.note : '') + ' (' + d.examiner + ', ' + d.ts + ')' : 'Needs review')],
         ['Clients', (f.ips || []).slice(0, 25).join(', ')], ['Paths', (f.stems || []).slice(0, 15).join('  ')], ['Description', f.description], ['False positive notes', f.falsePositives]], 'kv');
       if (f.examples && f.examples.length) {
-        h += '<pre>' + f.examples.slice(0, 10).map(function (x) { return E(fileName(idx, x[0]) + ':' + x[1] + '  ' + x[4]); }).join('\n') + '</pre>';
+        h += '<pre>' + f.examples.slice(0, 10).map(function (x) { return E(fileName(idx, x[0]) + ':' + x[1] + '  ' + (x[5] !== undefined ? (x[5] >= 0 ? x[5] : '-') + '  ' : '') + (x[4] || U.fmtTs(x[2]) + ' UTC  ' + x[3] + '  (raw line not kept)')); }).join('\n') + '</pre>';
       }
     }
     if (findings.length > shown.length) { h += '<p class="muted">' + (findings.length - shown.length) + ' further finding(s) omitted (false positives or beyond the first 300).</p>'; }
@@ -8847,6 +8879,15 @@ var IISLA = IISLA || {};
               uaSamples.jndi === '|inject' && uaSamples.headless === 'Headless Chrome 139|headless' && uaStep.pivotExact && (!st.store || uaStep.gridPivotRows > 0);
             step('ua.checks', uaStep);
           } catch (eU) { res.errors.push('ua.checks: ' + eU.message); }
+          // finding examples: statuses rendered, 2xx/5xx first (render the row finding with the most mixed responses)
+          try {
+            var rf = null; st.idx.findings.forEach(function (f) { if (f.entity === 'rows' && f.examples.length && (!rf || (f.statusMix && f.statusMix['4xx'] > (rf.statusMix['4xx'] || 0) && (f.statusMix['2xx'] || f.statusMix['5xx'])))) { rf = f; } });
+            if (rf) {
+              A.nav('findings', rf.id);
+              var stEls = st.el.main.querySelectorAll('.exst'), firstSt = stEls.length ? stEls[0].innerText : '';
+              step('findings.examples', { finding: rf.id + ' ' + rf.ruleId, mix: rf.statusMix, rendered: stEls.length, firstStatus: firstSt, ok: stEls.length === rf.examples.length && /^[25]/.test(firstSt) === !!(rf.statusMix['2xx'] || rf.statusMix['5xx']) });
+            }
+          } catch (eE) { res.errors.push('findings.examples: ' + eE.message); }
           // dialogs: open and close each one to catch rendering errors
           var dlgs = [['scan', NS.views.scanDialog], ['load', NS.views.loadDialog], ['export', NS.views.exportDialog]], di;
           for (di = 0; di < dlgs.length; di++) {
@@ -9373,9 +9414,13 @@ var IISLA = IISLA || {};
       if (f.examples && f.examples.length) {
         var ex = h('div', { className: 'rawctx small' });
         f.examples.forEach(function (x) {
-          ex.appendChild(h('div', { className: 'rl clickable', title: 'Double-click: raw context', ondblclick: function () { A.rawContext(x[0], x[1]); } }, [h('span', { className: 'ln' }, ((st.idx.files[x[0]] || {}).name || '') + ':' + x[1]), x[4]]));
+          var sc = x[5] >= 0 ? Math.floor(x[5] / 100) : 0;
+          ex.appendChild(h('div', { className: 'rl clickable', title: 'Double-click: raw context' + (x[6] ? ' · severity of this hit: ' + x[6] : ''), ondblclick: function () { A.rawContext(x[0], x[1]); } }, [
+            h('span', { className: 'ln' }, ((st.idx.files[x[0]] || {}).name || '') + ':' + x[1]),
+            x[5] !== undefined ? h('span', { className: 'exst s' + sc }, x[5] >= 0 ? '' + x[5] : '-') : null,
+            x[4] || h('span', { className: 'muted' }, U.fmtTs(x[2]) + ' UTC  ' + x[3] + '  (raw line not kept; double-click for the raw context)')]));
         });
-        detail.appendChild(h('div', { className: 'mt' }, ['Example rows' + (f.kept ? ' (' + Math.min(20, f.examples.length) + ' of ' + U.fmtNum(f.kept) + ' kept)' : '') + ':', ex]));
+        detail.appendChild(h('div', { className: 'mt' }, ['Example rows' + (f.kept ? ' (' + f.examples.length + ' of ' + U.fmtNum(f.kept) + ' kept; responses 2xx and 5xx first, then the rest in log order)' : '') + ':', ex]));
       }
     }
     if (list.length) {
