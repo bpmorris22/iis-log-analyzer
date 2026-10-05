@@ -20,7 +20,6 @@
   "ruleHitRetention32": 10000,
   "internalCidrs": [],
   "allowedIpsFile": "%USERPROFILE%\\.hawk_triage_allowed_ips.txt",
-  "iocFile": "%USERPROFILE%\\.hawk_triage_iocs.txt",
   "caseWorkspaceRoot": "%USERPROFILE%\\Documents\\IIS Log Analyzer Cases",
   "examiner": "",
   "recentRoots": [],

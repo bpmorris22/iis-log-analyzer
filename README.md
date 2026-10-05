@@ -96,7 +96,7 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 - Custom row rules are added to the JSON with a `match` block (see `C-EXAMPLE-001`). Supported keys: `method`, `stem`, `query`, `ua`, `user`, `raw` (each `{contains|glob|regex|equals}`), `status` (`404`, `4xx`, `404.8`), `ipClass`, `uaFamily`, `ext`, `cip` (CIDRs), `minTaken`, `exec`.
 - `lists\*.txt` hold the sensitive paths, scanner user agents, executable and static extensions, login and download endpoints, known exploit paths, web shell names and parameters. One entry per line; `re:` prefix for a regex, `*`/`?` for a glob, otherwise a substring. Restart the HTA after editing.
 - Allow-listed IPs (default `%USERPROFILE%\.hawk_triage_allowed_ips.txt`) are classed `allowlisted`: rows stay visible but public/internal rules do not fire for them.
-- IOC lists accept `type,value,note` lines or bare values (IPs, CIDRs, `/paths`, `re:` regexes, free text). The Hawk IOC file can be imported from the IOCs view.
+- IOC lists accept `type,value,note` lines or bare values (IPs, CIDRs, `/paths`, `re:` regexes, free text). Each case keeps its list in `<CaseID>-IOCs.txt` in the case workspace (written by Save & compile, never inside an evidence folder); other indicator files can be appended with Import.
 
 ## Forensic handling
 
