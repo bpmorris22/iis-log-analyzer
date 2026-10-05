@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "notes": "Built-in rules have logic in lib/rules.js keyed by id; their thresholds come from 'params' here. Any rule with a 'match' block and an id not handled by lib/rules.js is compiled as a custom row rule (see README).",
   "rules": [
     { "id": "R-SCAN-001", "name": "High 404 volume from single public client", "category": "Reconnaissance", "severity": "medium", "scope": "aggregate", "entity": "ip",
@@ -125,6 +125,19 @@
       "attack": ["T1110.004"], "enabled": true, "params": { "uasPerDay": 5 },
       "description": "Public client used many distinct user agents within one day, typical of credential-stuffing or scanner tooling.",
       "falsePositives": "Carrier-grade NAT and corporate proxies." },
+
+    { "id": "R-UA-001", "name": "Outdated browser user agent reaching executable handlers", "category": "Reconnaissance", "severity": "low", "scope": "aggregate", "entity": "ua",
+      "attack": ["T1595"], "enabled": true, "params": { "minAgeDays": 730, "includeEol": true, "minExecOk": 1, "maxIps": 20 },
+      "description": "A browser user agent whose version was at least minAgeDays old when it was first seen (or a browser past its end of support, such as Internet Explorer), used by no more than maxIps clients, received 2xx responses from executable handlers for public clients. Attack tools and scripts often hard-code an old browser string. Release dates come from lists\\browser-releases.txt.",
+      "falsePositives": "Unmanaged or embedded clients (kiosks, scanners, line-of-business applications) that are never updated; check the clients and their behaviour." },
+    { "id": "R-UA-002", "name": "Spoofed, malformed or automation user agent", "category": "Defense Evasion", "severity": "low", "scope": "aggregate", "entity": "ua",
+      "attack": ["T1036"], "enabled": true, "params": { "flags": ["impossible", "malformed", "headless"], "escalateOnExecOk": true },
+      "description": "User agent used by public clients that cannot exist (browser version not released yet, not available for the stated Windows version, or a Windows version that does not exist), is malformed, or names a headless browser or automation tool. Escalates to medium when public clients received 2xx responses from executable handlers with it.",
+      "falsePositives": "Privacy tools and extensions that randomise the user agent; monitoring that uses headless browsers; home-grown clients with a hand-written user agent." },
+    { "id": "R-UA-003", "name": "Exploit payload in the user agent", "category": "Exploitation", "severity": "medium", "scope": "row", "entity": "row",
+      "attack": ["T1190"], "enabled": true, "params": {},
+      "description": "The user agent carries an exploit payload: Log4Shell lookups (${jndi:...}), Shellshock (() { :; };), OGNL, script tags, SQL or shell injection. The response status says little here: such payloads target logging and back-end components and often act out of band.",
+      "falsePositives": "Security scanners run by the organisation." },
 
     { "id": "R-EXF-001", "name": "Archive / database / document downloaded by public client", "category": "Exfiltration", "severity": "medium", "scope": "row", "entity": "row",
       "attack": ["T1005", "T1041"], "enabled": true, "params": {},

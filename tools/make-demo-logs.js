@@ -6,8 +6,10 @@
  * (self-test switch /testnets), otherwise the 192.0.2/198.51.100/203.0.113 clients are classed as bogons. Story, all times UTC:
  *   2026-02-01 .. 03-14  normal intranet traffic, remote users, a local health check every 5 minutes, internet noise
  *                        (42 days, so the 30-day baseline of R-WS-001 is established before the intrusion)
- *   2026-03-09 03:12     203.0.113.66 runs Nikto and sqlmap: ~3,600 requests, sensitive files, PHP-CGI, traversal, odd methods
- *   2026-03-10 14:02     203.0.113.45 brute-forces the login page (420 POSTs), logs in, uploads a web shell to /portal/uploads/
+ *   2026-03-09 03:12     203.0.113.66 runs Nikto and sqlmap: ~3,600 requests, sensitive files, PHP-CGI, traversal, odd methods,
+ *                        Log4Shell and Shellshock payloads in the user agent
+ *   2026-03-10 14:02     203.0.113.45 brute-forces the login page (420 POSTs) with a spoofed "Chrome 114 on Windows 7" user agent,
+ *                        logs in, uploads a web shell to /portal/uploads/
  *                        and runs commands through it; the server restarts at 16:20
  *   2026-03-11 02:05     203.0.113.45 enumerates report.ashx?id=..., downloads a 188 MB export and a database backup;
  *                        an internal client runs exec requests late at night
@@ -25,9 +27,14 @@ var CRLF = String.fromCharCode(13, 10), MIN = 60000, HOUR = 3600000, DAY = 86400
 var FIELDS = 'date time s-ip cs-method cs-uri-stem cs-uri-query s-port cs-username c-ip cs(User-Agent) cs(Referer) sc-status sc-substatus sc-win32-status sc-bytes cs-bytes time-taken';
 var SIP = '10.0.0.5', SITE = 'https://portal.example.com';
 var UA = {
-  chrome: 'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/128.0.0.0+Safari/537.36',
-  edge: 'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/128.0.0.0+Safari/537.36+Edg/128.0.0.0',
-  mac: 'Mozilla/5.0+(Macintosh;+Intel+Mac+OS+X+14_6)+AppleWebKit/605.1.15+(KHTML,+like+Gecko)+Version/17.6+Safari/605.1.15',
+  chrome: 'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/144.0.0.0+Safari/537.36',
+  edge: 'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/144.0.0.0+Safari/537.36+Edg/144.0.0.0',
+  mac: 'Mozilla/5.0+(Macintosh;+Intel+Mac+OS+X+10_15_7)+AppleWebKit/605.1.15+(KHTML,+like+Gecko)+Version/26.2+Safari/605.1.15',
+  ie11: 'Mozilla/5.0+(Windows+NT+10.0;+WOW64;+Trident/7.0;+rv:11.0)+like+Gecko',
+  spoof: 'Mozilla/5.0+(Windows+NT+6.1;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Chrome/114.0.0.0+Safari/537.36',
+  ie6: 'Mozilla/4.0+(compatible;+MSIE+6.0;+Windows+NT+5.1;+SV1)',
+  headless: 'Mozilla/5.0+(Windows+NT+10.0;+Win64;+x64)+AppleWebKit/537.36+(KHTML,+like+Gecko)+HeadlessChrome/139.0.0.0+Safari/537.36',
+  shellshock: '()+{+:;+};+/bin/bash+-c+id',
   lb: 'LoadBalancer-HealthCheck/1.0',
   nikto: 'Mozilla/5.0+(Nikto/2.5.0)+(Evasions:None)+(Test:Port+Check)',
   sqlmap: 'sqlmap/1.8.4#stable+(https://sqlmap.org)',
@@ -86,14 +93,14 @@ for (d = 0; d < N; d++) {
   for (i = 10; i < 40; i++) {
     if (rnd() > (we ? 0.06 : 0.85)) { continue; }
     var n = we ? 1 : ri(1, 3);
-    for (var k = 0; k < n; k++) { session('10.20.1.' + i, i % 3 ? UA.chrome : UA.edge, day + (utcOff + 8) * HOUR + ri(0, 9.5 * HOUR), ri(5, 30)); }
+    for (var k = 0; k < n; k++) { session('10.20.1.' + i, i === 33 ? UA.ie11 : (i % 3 ? UA.chrome : UA.edge), day + (utcOff + 8) * HOUR + ri(0, 9.5 * HOUR), ri(5, 30)); }
   }
   for (i = 10; i < 22; i++) { if (!we && rnd() < 0.5) { session('198.51.100.' + i, i % 2 ? UA.chrome : UA.mac, day + (utcOff + 7) * HOUR + ri(0, 11 * HOUR), ri(4, 25)); } }
   var noise = ri(15, 35);
   for (i = 0; i < noise; i++) {
     var nip = '192.0.2.' + ri(2, 250), nt = day + ri(0, DAY - MIN), what = rnd();
-    if (what < 0.5) { add(nt, 'GET', '/', '-', 443, '', nip, pick([UA.zgrab, UA.curl, UA.chrome]), '-', 302, 0, 0, 312, 120, 1); }
-    else if (what < 0.8) { add(nt, 'GET', '/robots.txt', '-', 443, '', nip, pick([UA.zgrab, UA.chrome]), '-', 404, 0, 2, 1245, 140, 1); }
+    if (what < 0.5) { add(nt, 'GET', '/', '-', 443, '', nip, pick([UA.zgrab, UA.curl, UA.chrome, UA.ie6]), '-', 302, 0, 0, 312, 120, 1); }
+    else if (what < 0.8) { add(nt, 'GET', '/robots.txt', '-', 443, '', nip, pick([UA.zgrab, UA.chrome, UA.headless]), '-', 404, 0, 2, 1245, 140, 1); }
     else { add(nt, 'GET', '/.env', '-', 443, '', nip, UA.curl, '-', 404, 0, 2, 1245, 130, 1); }
   }
 }
@@ -118,6 +125,7 @@ for (d = 0; d < N; d++) {
     ['FVAJ', '/', '-', 405, 0], ['GET', '/RemoteApplicationMetadata.rem', 'wsdl', 500, 0], ['GET', '/portal/Telerik.Web.UI.WebResource.axd', 'type=rau', 404, 2]];
   for (var s = 0; s < special.length; s++) { add(t, special[s][0], special[s][1], special[s][2], 443, '', ip, UA.nikto, '-', special[s][3], 0, special[s][4], 1245, 300, ri(1, 30)); t += ri(800, 2500); }
   for (var j = 0; j < 20; j++) { add(t, 'GET', '/portal/', '-', 443, '', ip, UA.jndi, '-', 302, 0, 0, 312, 260, 2); t += ri(500, 1500); }
+  for (j = 0; j < 4; j++) { add(t, 'GET', '/cgi-bin/status', '-', 443, '', ip, UA.shellshock, '-', 404, 0, 2, 1245, 230, 1); t += ri(500, 1500); }
   var inj = ["1%27+OR+%271%27%3D%271", '1+AND+SLEEP(5)', "1%27%3BWAITFOR+DELAY+%270:0:5%27--", '1+UNION+ALL+SELECT+NULL,NULL,NULL--', "1%27+AND+1%3DCONVERT(int,@@version)--"];
   for (var q = 0; q < 420; q++) {
     var bad = rnd() < 0.15;
@@ -129,13 +137,13 @@ for (d = 0; d < N; d++) {
 // ---------- 2026-03-10: brute force, web shell upload and use from 203.0.113.45 ----------
 (function () {
   var ip = '203.0.113.45', t = Date.UTC(2026, 2, 10, 14, 2, 10), i2;
-  add(t, 'GET', '/portal/Account/Login.aspx', '-', 443, '', ip, UA.chrome, '-', 200, 0, 0, 7980, 520, 31); t += 3000;
-  for (i2 = 0; i2 < 420; i2++) { add(t, 'POST', '/portal/Account/Login.aspx', '-', 443, '', ip, UA.chrome, SITE + '/portal/Account/Login.aspx', 200, 0, 0, ri(9790, 9830), ri(1350, 1450), ri(70, 160)); t += ri(700, 1300); }
-  add(t, 'POST', '/portal/Account/Login.aspx', '-', 443, '', ip, UA.chrome, SITE + '/portal/Account/Login.aspx', 302, 0, 0, 455, 1402, 188); t += 900;
-  add(t, 'GET', '/portal/Dashboard.aspx', '-', 443, '', ip, UA.chrome, SITE + '/portal/Account/Login.aspx', 200, 0, 0, 41250, 610, 140);
+  add(t, 'GET', '/portal/Account/Login.aspx', '-', 443, '', ip, UA.spoof, '-', 200, 0, 0, 7980, 520, 31); t += 3000;
+  for (i2 = 0; i2 < 420; i2++) { add(t, 'POST', '/portal/Account/Login.aspx', '-', 443, '', ip, UA.spoof, SITE + '/portal/Account/Login.aspx', 200, 0, 0, ri(9790, 9830), ri(1350, 1450), ri(70, 160)); t += ri(700, 1300); }
+  add(t, 'POST', '/portal/Account/Login.aspx', '-', 443, '', ip, UA.spoof, SITE + '/portal/Account/Login.aspx', 302, 0, 0, 455, 1402, 188); t += 900;
+  add(t, 'GET', '/portal/Dashboard.aspx', '-', 443, '', ip, UA.spoof, SITE + '/portal/Account/Login.aspx', 200, 0, 0, 41250, 610, 140);
   t = Date.UTC(2026, 2, 10, 14, 15, 3);
-  add(t, 'GET', '/portal/Upload/Default.aspx', '-', 443, '', ip, UA.chrome, SITE + '/portal/Dashboard.aspx', 200, 0, 0, 12044, 640, 51); t += 17000;
-  add(t, 'POST', '/portal/Upload/Handler.ashx', '-', 443, '', ip, UA.chrome, SITE + '/portal/Upload/Default.aspx', 200, 0, 0, 388, 18422, 312); t += 21000;
+  add(t, 'GET', '/portal/Upload/Default.aspx', '-', 443, '', ip, UA.spoof, SITE + '/portal/Dashboard.aspx', 200, 0, 0, 12044, 640, 51); t += 17000;
+  add(t, 'POST', '/portal/Upload/Handler.ashx', '-', 443, '', ip, UA.spoof, SITE + '/portal/Upload/Default.aspx', 200, 0, 0, 388, 18422, 312); t += 21000;
   add(t, 'GET', '/portal/uploads/x.aspx', '-', 443, '', ip, UA.py, '-', 200, 0, 0, 1874, 210, 466); t += 30000;
   var cmds = ['whoami', 'whoami+/priv', 'hostname', 'ipconfig+/all', 'net+user', 'net+localgroup+administrators', 'net+group+%22domain+admins%22+/domain', 'systeminfo',
     'tasklist', 'dir+C:%5Cinetpub%5Cwwwroot%5Cportal', 'type+C:%5Cinetpub%5Cwwwroot%5Cportal%5Cweb.config', 'powershell+-nop+-w+hidden+-c+Get-Process',

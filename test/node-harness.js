@@ -62,7 +62,7 @@ global.Enumerator.prototype.item = function () { return this.a[this.i]; };
 
 var root = path.join(__dirname, '..');
 function load(f) { vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f }); }
-['lib/util.js', 'lib/tz.js', 'lib/io.js', 'lib/parser.js', 'lib/rules.js', 'lib/scan.js', 'lib/engine.js', 'lib/store.js', 'lib/filter.js'].forEach(function (f) {
+['lib/util.js', 'lib/tz.js', 'lib/io.js', 'lib/parser.js', 'lib/useragent.js', 'lib/rules.js', 'lib/scan.js', 'lib/engine.js', 'lib/store.js', 'lib/filter.js'].forEach(function (f) {
   if (fs.existsSync(path.join(root, f))) { load(f); }
 });
 var NS = global.IISLA;
@@ -74,6 +74,7 @@ NS.util.isBusinessTime = NS.util.isBusinessTime;
 NS.loadLists = function () {
   var dir = path.join(root, 'lists'), out = {};
   fs.readdirSync(dir).forEach(function (n) { if (/\.txt$/.test(n)) { out[n.replace(/\.txt$/, '')] = NS.util.parseList(fs.readFileSync(path.join(dir, n), 'utf8')); } });
+  NS.useragent.init(out['browser-releases']); // as the HTA does at start-up
   return out;
 };
 NS.defaultSettings = function () {

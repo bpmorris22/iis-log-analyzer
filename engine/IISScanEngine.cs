@@ -673,7 +673,7 @@ namespace IISLA
     }
     public sealed class StemInfo { public string key, dec, ext, dir, b; public bool decErr, exec, stat, ws005, sens, probe, exPath, trav, cmdi, exp001, shellName, upDir, dlEp, loginEp, pubDl, exf, exfHigh, lng, dotnetProbe, axd, svc, php, dotnet; }
     public sealed class QueryInfo { public bool empty, decErr, exp001, trav, cmdi, phpinfo, shellParam, highEnt, lng, versionOnly, hasD, wsdl; public string dec, lower; public int len, sqli; public double ent = double.NaN; }
-    public sealed class UaInfo { public string dec, fam; public bool scanner, shellUa, empty; }
+    public sealed class UaInfo { public string dec, fam; public bool scanner, shellUa, empty, inject; }
 
     public sealed class Deriver
     {
@@ -692,7 +692,7 @@ namespace IISLA
         }
         HashSet<string> execExt, staticExt, ws005Ext, exfExt, exfHigh; List<string> probeExt;
         Matcher sens, scanUa, loginEp, exPath, upDirs, dlEp, pubDl, shellName, shellParam, dotnetProbe;
-        Regex reTrav, reExp001, reSqliHigh, reSqliMed, reCmdi, rePhpinfo, reVersionOnly, reHasD, reWsdl, reAxd, reSvc, reShellUa, rePhp, reDotnet;
+        Regex reTrav, reExp001, reSqliHigh, reSqliMed, reCmdi, rePhpinfo, reVersionOnly, reHasD, reWsdl, reAxd, reSvc, reShellUa, reUaInject, rePhp, reDotnet;
         List<KeyValuePair<string, Regex>> uaFamilies = new List<KeyValuePair<string, Regex>>();
         Dictionary<string, StemInfo> sc = new Dictionary<string, StemInfo>(StringComparer.Ordinal);
         Dictionary<string, QueryInfo> qc = new Dictionary<string, QueryInfo>(StringComparer.Ordinal);
@@ -732,7 +732,7 @@ namespace IISLA
             dotnetProbe = Matcher.Build(L(lists, "dotnet-probe-paths", null));
             reTrav = R(res, "trav"); reExp001 = R(res, "exp001"); reSqliHigh = R(res, "sqliHigh"); reSqliMed = R(res, "sqliMed"); reCmdi = R(res, "cmdi");
             rePhpinfo = R(res, "phpinfo"); reVersionOnly = R(res, "versionOnly"); reHasD = R(res, "hasD"); reWsdl = R(res, "wsdl"); reAxd = R(res, "axd");
-            reSvc = R(res, "svc"); reShellUa = R(res, "shellUa"); rePhp = R(res, "php"); reDotnet = R(res, "dotnet");
+            reSvc = R(res, "svc"); reShellUa = R(res, "shellUa"); reUaInject = R(res, "uaInject"); rePhp = R(res, "php"); reDotnet = R(res, "dotnet");
             foreach (object o in uaFam) { var a = (List<object>)o; string src = (string)a[1]; uaFamilies.Add(new KeyValuePair<string, Regex>((string)a[0], JsRegex.Make(src, ((string)a[2]).IndexOf('i') >= 0 && JsRegex.HasUpperLiteral(src)))); }
         }
         bool EndsWithAny(string s) { foreach (var p in probeExt) if (s.EndsWith(p, StringComparison.Ordinal)) return true; return false; }
@@ -777,7 +777,7 @@ namespace IISLA
             bool scanner = TM("m.scanUa", scanUa, dl), shell = T("shellUa", reShellUa, dl); string fam = "other";
             if (dec.Length == 0) fam = "empty"; else if (shell) fam = "webshell-client"; else if (scanner) fam = "scanner";
             else foreach (var f in uaFamilies) if (T("uafam:" + f.Key, f.Value, dl)) { fam = f.Key; break; }
-            v = new UaInfo { dec = dec, fam = fam, scanner = scanner, shellUa = shell, empty = dec.Length == 0 };
+            v = new UaInfo { dec = dec, fam = fam, scanner = scanner, shellUa = shell, empty = dec.Length == 0, inject = dec.Length > 0 && T("uaInject", reUaInject, dl) };
             uc[raw] = v; return v;
         }
         public string IpClass(string ip)
@@ -1073,6 +1073,7 @@ namespace IISLA
                         return c => (c.pub && st.Contains(c.r.Status)) || (w32.Contains(c.r.Win32) && c.r.Method == "POST" && c.si.exec) ? T : null;
                     }
                 case "R-WS-004": return c => c.si.shellName || c.qi.shellParam || c.ui.shellUa ? T : null;
+                case "R-UA-003": return c => c.ui.inject ? T : null;
                 case "R-WS-005": return c => c.si.ws005 && c.pub && c.r.Status == 200 && (c.r.Method == "POST" || (!c.qi.empty && !c.qi.versionOnly)) ? T : null;
                 case "R-AUTH-003":
                     {
@@ -1206,7 +1207,7 @@ namespace IISLA
         public OMap<double> m = new OMap<double>(), st = new OMap<double>(), ua = new OMap<double>(), d = new OMap<double>(), hits = new OMap<double>(), off = new OMap<double>();
     }
     public sealed class StemRec { public double n, first, last, fFile, fLine, ipOv, pubN, post, ok, okPub, s4, s5; public int ipN; public string fIp, raw; public bool exec, upDir; public OMap<double> ips = new OMap<double>(), sts = new OMap<double>(); }
-    public sealed class UaRec { public double n, first, last, ipOv; public int ipN; public string fam; public OMap<double> ips = new OMap<double>(); }
+    public sealed class UaRec { public double n, first, last, fFile, fLine, ipOv, pubN, s2, s3, s4, s5, post, exec, xok, hits; public int ipN; public string fam, fIp; public OMap<double> ips = new OMap<double>(); }
     public sealed class UserRec { public double n, first, last, fFile, fLine, pub; public int ipN; public OMap<double> ips = new OMap<double>(); }
     public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
     public sealed class EnumRec { public int n; public HashSet<string> q = new HashSet<string>(StringComparer.Ordinal); }
@@ -1564,10 +1565,14 @@ namespace IISLA
             if (!uas.TryGet(ua, out u))
             {
                 if (cUas >= uaCap && cUas >= evAtUas) EvictUas();
-                u = new UaRec { first = t, last = t, fam = ui.fam }; uas[ua] = u; cUas++;
+                u = new UaRec { first = t, last = t, fFile = r.fileId, fLine = r.lineNo, fIp = ip, fam = ui.fam }; uas[ua] = u; cUas++;
             }
-            u.n++; if (t > u.last) u.last = t; if (t < u.first) u.first = t;
-            if (!u.ips.Has(ip)) { if (u.ipN < 20) { u.ips[ip] = 1; u.ipN++; } else u.ipOv = 1; }
+            u.n++; if (t > u.last) u.last = t; if (t < u.first) { u.first = t; u.fFile = r.fileId; u.fLine = r.lineNo; u.fIp = ip; }
+            if (!u.ips.Has(ip)) { if (u.ipN < 20) { u.ips[ip] = 1; u.ipN++; if (pub) u.pubN++; } else u.ipOv = 1; }
+            if (scl == 2) u.s2++; else if (scl == 3) u.s3++; else if (scl == 4) u.s4++; else if (scl == 5) u.s5++;
+            if (isPost) u.post++;
+            if (si.exec) { u.exec++; if (scl == 2 && pub) u.xok++; }
+            if (nh > 0) u.hits++;
 
             // users
             string user = r.User;
@@ -1691,7 +1696,7 @@ namespace IISLA
             double thr = 1, removed = 0;
             while (cUas >= uaCap * 0.9 && thr < 1000)
             {
-                foreach (var k in uas.Keys()) { if (uas[k].n <= thr) { uas.Remove(k); cUas--; removed++; } }
+                foreach (var k in uas.Keys()) { if (uas[k].n <= thr && uas[k].hits == 0) { uas.Remove(k); cUas--; removed++; } }
                 thr *= 2;
             }
             uaEvicted += removed;
@@ -1759,7 +1764,12 @@ namespace IISLA
                 }
                 j.EndObj();
                 j.Key("uas").ObjStart();
-                foreach (var k in uas.Keys()) { var u = uas[k]; j.Key(k).ObjStart().KNum("n", u.n).KNum("first", u.first).KNum("last", u.last); MapNum(j, "ips", u.ips); j.KNum("ipN", u.ipN).KNum("ipOv", u.ipOv).KStr("fam", u.fam).EndObj(); }
+                foreach (var k in uas.Keys())
+                {
+                    var u = uas[k]; j.Key(k).ObjStart().KNum("n", u.n).KNum("first", u.first).KNum("last", u.last).KNum("fFile", u.fFile).KNum("fLine", u.fLine).KStr("fIp", u.fIp);
+                    MapNum(j, "ips", u.ips); j.KNum("ipN", u.ipN).KNum("ipOv", u.ipOv).KNum("pubN", u.pubN).KStr("fam", u.fam)
+                     .KNum("s2", u.s2).KNum("s3", u.s3).KNum("s4", u.s4).KNum("s5", u.s5).KNum("post", u.post).KNum("exec", u.exec).KNum("xok", u.xok).KNum("hits", u.hits).EndObj();
+                }
                 j.EndObj();
                 j.Key("users").ObjStart();
                 foreach (var k in users.Keys()) { var u = users[k]; j.Key(k).ObjStart().KNum("n", u.n).KNum("first", u.first).KNum("last", u.last).KNum("fFile", u.fFile).KNum("fLine", u.fLine); MapNum(j, "ips", u.ips); j.KNum("ipN", u.ipN).KNum("pub", u.pub).EndObj(); }

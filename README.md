@@ -29,7 +29,7 @@ Double-clicking `IISLogAnalyzer.hta` works too. An evidence path can be passed a
 2. **Scan.** Streams every selected file once and builds the index: per-day/hour counts, per-client, per-path and per-user-agent aggregates, first-seen tables, restarts, gaps and rule hits. Rows are not kept in memory. Choose the fast or the built-in engine (see below). Scans can be cancelled and continued. The index is cached in the case workspace and reloaded automatically if the evidence is unchanged; a changed file blocks the cached index and is reported.
 3. **Overview and Findings.** Review the corpus, then findings by severity. Record a disposition (true positive, false positive, benign) and a note for each.
 4. **Load rows.** Choose a date range and/or a pre-filter (for example `class:public`) to load a slice into the grid. Opened from a chart, the dialog takes the selected time range and narrows the file selection to the files that cover it. The load stops at the row cap; nothing is sampled.
-5. **Investigate.** Grid with quick filters, pivots (right-click), raw context straight from the evidence file (Enter / double-click), Top-N, Timeline, IP and URI profiles, Sessions, and free-form SQL through Log Parser 2.2 when it is installed.
+5. **Investigate.** Grid with quick filters, pivots (right-click), raw context straight from the evidence file (Enter / double-click), Top-N, Timeline, IP and URI profiles, User agents, Sessions, and free-form SQL through Log Parser 2.2 when it is installed.
 6. **Tag, note, export, report.** Every export and report is hashed (`.sha256` sidecar) and recorded in `audit.log`.
 
 ## Scan engines
@@ -69,6 +69,19 @@ If a newer release exists, **Download and replace** fetches the new single-file 
 
 If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parser 2.2`, or a path set in Settings), the **Log Parser** view runs SQL over the current scope. `{files}` in a query expands to the evidence files. Templates cover top clients, hourly volume, status breakdown, executable paths answered to non-internal clients, one client's requests, 5xx and slowest requests. Queries run hidden and asynchronously, results appear in the grid, can be exported with a hash, and every query is audited. The query text is passed through a query file, never on a command line. A traffic light on the tab (and a dot in the navigation) shows green when `LogParser.exe` is found, amber when the path set in Settings does not exist, and red when it is not installed. **Download Log Parser 2.2...** opens Microsoft's official download page in the browser after confirmation; the tool itself never downloads or installs Log Parser.
 
+## User agents
+
+![User agents view: each distinct user agent with flags, parsed browser and OS, release date and age, with the detail of a spoofed Chrome 114 on Windows 7](docs/images/uas.png)
+
+The **User agents** view lists every distinct user agent in the index (or in the loaded rows) with the browser and version it claims, the operating system, when that version was released and how old it was when the user agent was first seen. Unusual ones come first, each with the reason:
+
+- `stale`: the browser version was older than 365 days (configurable) at the time of the request. Browsers update themselves; tools often hard-code an old string.
+- `eol` / `eol-os`: the browser (Internet Explorer, EdgeHTML Edge) or Windows version was past its end of support at the time.
+- `impossible`: a combination that never existed, for example Chrome 114 on Windows 7 (109 was the last), Firefox 128 on Windows 7, a version released only later, Safari 17 on Windows, or `Windows NT 11.0`.
+- `malformed`, `inject` (Log4Shell, Shellshock and other payloads), `headless` (HeadlessChrome, PhantomJS, Selenium, Puppeteer, Playwright), and `rare` (seen from one public client by default).
+
+Release dates come from `lists\browser-releases.txt`. Double-click a user agent to filter the grid to it. The same flags are available as grid columns and as the `uaflag:`, `uaage:` and `browser:` filters, and the IP profile shows them for each client. Rules R-UA-001 (outdated browser reaching executable handlers), R-UA-002 (spoofed, malformed or automation user agent) and R-UA-003 (exploit payload in the user agent) report the strongest cases as findings.
+
 ## Quick filter syntax
 
 | Example | Meaning |
@@ -80,7 +93,8 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 | `stem:login` `stem:*.aspx` `stem:=/exact` `stem:^/portal` `stem:/regex/` | URI stem contains / glob / exact / prefix / regex |
 | `ext:.aspx,.php` `dir:/uploads/` `exec:yes` `static:no` `new:2026-09-01` | extension, directory prefix, executable/static, first seen on or after |
 | `query:cmd=` `qlen:>500` `decerr:yes` | query contains, query length, URL-decode errors |
-| `ua:python` `family:scanner` `ua:empty` | user agent contains, family, empty |
+| `ua:python` `ua:="exact string"` `family:scanner` `ua:empty` | user agent contains, exact, family, empty |
+| `uaflag:stale,impossible` `uaflag:any` `uaage:>365` `browser:ie` | user-agent flags at the time of the request (stale eol eol-os impossible malformed inject headless rare), browser version age in days, parsed browser |
 | `taken:>30000` `bytes:>1000000` | time-taken ms, sc-bytes |
 | `after:2026-09-08` `before:"2026-09-08 12:00"` `hour:0-6` `dow:0,6` | time in the display time zone (append `Z` for UTC), local hour, weekday |
 | `rule:any` `rule:R-EXP-*` `sev:high,critical` | rule hits; `sev:` uses the severity graded for that row |
@@ -90,11 +104,12 @@ If Microsoft Log Parser 2.2 is installed (default `Program Files (x86)\Log Parse
 
 ## Detection rules and lists
 
-- `rules\default-rules.json` holds the 41 built-in rules (reconnaissance, exploitation, web shells, credential access, exfiltration, log integrity) with severity, ATT&CK IDs, descriptions and tunable `params`. Their logic lives in `lib\rules.js` and `lib\scan.js` (and, identically, in the fast engine); thresholds come from the JSON.
+- `rules\default-rules.json` holds the 44 built-in rules (reconnaissance, exploitation, web shells, credential access, exfiltration, log integrity) with severity, ATT&CK IDs, descriptions and tunable `params`. Their logic lives in `lib\rules.js` and `lib\scan.js` (and, identically, in the fast engine); thresholds come from the JSON.
 - Rules that match the request itself (R-WS-004 web shell names and parameters, R-EXP-001 to R-EXP-005 injection and probing) are graded by the response (`"gradeByStatus": true`): a hit keeps the rule severity when the server answered 2xx or 5xx, drops one level for 3xx, and drops to low for 4xx and other failures. Failed attempts are still counted. A finding takes the highest severity of its rows, and every row-rule finding lists its responses by status class.
 - Rules can be enabled or disabled per case under Settings. Row-rule changes need a rescan. Aggregate-rule changes apply with "Re-evaluate aggregate rules" in Findings.
 - Custom row rules are added to the JSON with a `match` block (see `C-EXAMPLE-001`). Supported keys: `method`, `stem`, `query`, `ua`, `user`, `raw` (each `{contains|glob|regex|equals}`), `status` (`404`, `4xx`, `404.8`), `ipClass`, `uaFamily`, `ext`, `cip` (CIDRs), `minTaken`, `exec`.
 - `lists\*.txt` hold the sensitive paths, scanner user agents, executable and static extensions, login and download endpoints, known exploit paths, web shell names and parameters. One entry per line; `re:` prefix for a regex, `*`/`?` for a glob, otherwise a substring. Restart the HTA after editing.
+- `listsrowser-releases.txt` lists the first stable release date of browser major versions, the cadence used past the last listed one, and end-of-support dates. The User agents view, the `uaflag:`/`uaage:` filters and rules R-UA-001/R-UA-002 use it to judge how old a user agent's browser was when it was used. Add the newest releases from time to time.
 - Allow-listed IPs (default `%USERPROFILE%\.hawk_triage_allowed_ips.txt`) are classed `allowlisted`: rows stay visible but public/internal rules do not fire for them.
 - IOC lists accept `type,value,note` lines or bare values (IPs, CIDRs, `/paths`, `re:` regexes, free text). Each case keeps its list in `<CaseID>-IOCs.txt` in the case workspace (written by Save & compile, never inside an evidence folder); other indicator files can be appended with Import.
 

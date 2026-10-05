@@ -97,7 +97,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <div class="layout">
 <nav class="toc" aria-label="Contents">
   <div class="brand">IIS Log Analyzer</div>
-  <div class="ver">Manual for version 1.3.3</div>
+  <div class="ver">Manual for version 1.4.0</div>
   <ol id="toc-list"></ol>
   <button class="theme-btn" id="themeBtn" type="button">Toggle light / dark</button>
 </nav>
@@ -107,7 +107,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <header class="hero">
   <h1>IIS Log Analyzer</h1>
   <p class="lead">Offline forensic analysis of Microsoft IIS W3C Extended logs, from a single HTML Application that runs on any Windows 10 or 11 workstation with nothing to install.</p>
-  <div class="chips"><span class="chip">Version 1.3.3</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
+  <div class="chips"><span class="chip">Version 1.4.0</span><span class="chip">Windows 10 / 11</span><span class="chip">mshta (IE11 engine)</span><span class="chip">Read-only on evidence</span><span class="chip">No network access</span></div>
 </header>
 
 <details class="toc-mobile"><summary>Contents</summary><ol id="toc-mobile-list"></ol></details>
@@ -174,7 +174,7 @@ footer { margin-top: 60px; color: var(--muted); font-size: .85rem; border-top: 1
 <div class="table-wrap"><table>
 <tr><th>Area</th><th>Contents</th></tr>
 <tr><td>Toolbar</td><td>The name and version (click the version to check for updates); <em>Open evidence&hellip;</em>, <em>Scan&hellip;</em>, <em>Load rows&hellip;</em>, <em>Export&hellip;</em>, <em>Report</em>; the case ID, display time zone and host bitness; text size controls.</td></tr>
-<tr><td>Navigation</td><td>Case &amp; evidence, Overview, Findings (with count), Rows (grid, with loaded count), Top-N, Timeline, Client IPs, URI stems, Sessions, Integrity, IOCs, Log Parser, Tags &amp; notes, Settings, Help. <kbd>Alt</kbd>+<kbd>1</kbd>&hellip;<kbd>9</kbd> jump to the first nine.</td></tr>
+<tr><td>Navigation</td><td>Case &amp; evidence, Overview, Findings (with count), Rows (grid, with loaded count), Top-N, Timeline, Client IPs, URI stems, User agents, Sessions, Integrity, IOCs, Log Parser, Tags &amp; notes, Settings, Help. <kbd>Alt</kbd>+<kbd>1</kbd>&hellip;<kbd>9</kbd> jump to the first nine.</td></tr>
 <tr><td>Tables</td><td>Click any column heading to sort by it: numbers start with the largest value, text from A to Z, and a second click reverses the order. Empty values stay at the end. This works in every list and table, including findings, client IPs, URI stems, Top-N, sessions, the file table and Log Parser results.</td></tr>
 <tr><td>Status bar</td><td>Site, files and size; rows indexed; findings; rows loaded and their memory estimate; current grid count; malformed rows; allow-listed IPs.</td></tr>
 </table></div>
@@ -235,7 +235,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 </figure>
 <p>Each finding names a rule, an entity (a client, a path, a file, a gap or a group of rows), a count, first and last time, a detail sentence, ATT&amp;CK techniques, a description and known false positives. Filter by severity, category, rule, disposition or free text.</p>
 <ul>
-  <li><strong>Actions:</strong> <em>Load evidence rows</em> loads exactly the rows behind the finding; <em>IP profile</em> and <em>URI profile</em> open the entity; <em>Raw context of first occurrence</em> shows the lines around the first hit, read directly from the evidence file.</li>
+  <li><strong>Actions:</strong> <em>Load evidence rows</em> loads exactly the rows behind the finding; <em>IP profile</em>, <em>URI profile</em> and <em>User agent details</em> open the entity; <em>Raw context of first occurrence</em> shows the lines around the first hit, read directly from the evidence file.</li>
   <li><strong>Dispositions:</strong> Needs review, True positive, False positive, Benign true positive, each with an examiner note. They are saved in the case and appear in the report.</li>
   <li><strong>Grouping:</strong> when a rule matches more than 25 clients, files or paths, the 25 strongest are separate findings and the rest are folded into one summary finding.</li>
   <li><strong>Outcome:</strong> row-rule findings list their responses by status class. Rules that match the request itself are graded by the response (see <a href="#rules">Detection rules</a>), so probes that only received 404s are reported as low.</li>
@@ -263,9 +263,9 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 </figure>
 <ul>
   <li><strong>Quick filter</strong> (<kbd>Ctrl</kbd>+<kbd>F</kbd>): type terms and press <kbd>Enter</kbd>. Terms appear as removable chips. <em>Invert</em> negates the whole filter; <em>Presets</em> stores filters in the case.</li>
-  <li><strong>Sorting and columns:</strong> click a header to sort; <em>Columns&hellip;</em> chooses and orders columns (saved per case).</li>
+  <li><strong>Sorting and columns:</strong> click a header to sort; <em>Columns&hellip;</em> chooses and orders columns (saved per case). Optional columns include <em>Browser / OS</em>, <em>UA age (days)</em> and <em>UA flags</em>, judged at the time of each request.</li>
   <li><strong>Selection:</strong> arrows, <kbd>PgUp</kbd>/<kbd>PgDn</kbd>, <kbd>Ctrl</kbd>+<kbd>Home</kbd>/<kbd>End</kbd>; <kbd>Shift</kbd>/<kbd>Ctrl</kbd>+click for multiple rows; <kbd>Ctrl</kbd>+<kbd>C</kbd> copies rows as TSV and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> copies raw lines.</li>
-  <li><strong>Pivots (right-click):</strong> filter to or exclude a client, status or path; the same user agent; &plusmn;5 minutes around the row; IP or URI profile; raw context (&plusmn;50 lines); tag the row or IP as Attacker; add a note; copy.</li>
+  <li><strong>Pivots (right-click):</strong> filter to or exclude a client, status, path or user agent; &plusmn;5 minutes around the row; IP or URI profile; user agent details; raw context (&plusmn;50 lines); tag the row or IP as Attacker; add a note; copy.</li>
   <li><strong>Raw context</strong> (<kbd>Enter</kbd> or double-click) reads the lines around the row straight from the evidence file.</li>
   <li><strong>Tags and bookmarks:</strong> tag rows, IPs and paths (Attacker, Suspicious, Benign, Review, Reported), bookmark rows and add notes. All are stored in the case.</li>
 </ul>
@@ -273,7 +273,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 
 <section id="filters">
 <h2>Filter syntax</h2>
-<p>Terms are combined with AND. Prefix any term with <code>-</code> to negate it. Bare words must all appear in the path or query. Values with spaces go in double quotes.</p>
+<p>Terms are combined with AND. Prefix any term with <code>-</code> to negate it. Bare words must all appear in the path or query. Values with spaces go in double quotes, also after <code>=</code> or <code>^</code>: <code>ua:="Mozilla/5.0 (Windows NT 6.1)"</code>.</p>
 <div class="table-wrap"><table>
 <tr><th>Example</th><th>Meaning</th></tr>
 <tr><td><code>cip:203.0.113.45</code> <code>cip:10.0.0.0/8</code> <code>cip:/^203\./</code></td><td>Client IP (also matches the effective IP from X-Forwarded-For), CIDR, regular expression</td></tr>
@@ -285,7 +285,8 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td><code>ext:.aspx,.php</code> <code>dir:/uploads/</code> <code>exec:yes</code> <code>static:no</code></td><td>Extension, directory prefix, executable handler, static asset</td></tr>
 <tr><td><code>new:2026-03-01</code></td><td>Path first seen on or after a date</td></tr>
 <tr><td><code>query:cmd=</code> <code>qlen:&gt;500</code> <code>decerr:yes</code></td><td>Query contains, query length, URL-decoding errors</td></tr>
-<tr><td><code>ua:python</code> <code>family:scanner</code> <code>ua:empty</code></td><td>User agent contains, user-agent family, empty user agent</td></tr>
+<tr><td><code>ua:python</code> <code>ua:="exact string"</code> <code>family:scanner</code> <code>ua:empty</code></td><td>User agent contains, exact user agent, user-agent family, empty user agent</td></tr>
+<tr><td><code>uaflag:stale,impossible</code> <code>uaflag:any</code> <code>uaage:&gt;365</code> <code>browser:ie,firefox</code></td><td>User-agent flags judged at the time of each request (stale, eol, eol-os, impossible, malformed, inject, headless, rare; <code>any</code> for any of them), age of the browser version in days, parsed browser (see <a href="#user-agents">User agents</a>)</td></tr>
 <tr><td><code>taken:&gt;30000</code> <code>bytes:&gt;1000000</code></td><td>time-taken in milliseconds, sc-bytes</td></tr>
 <tr><td><code>after:2026-03-09</code> <code>before:"2026-03-10 12:00"</code> <code>hour:0-6</code> <code>dow:0,6</code></td><td>Time in the case time zone (append <code>Z</code> for UTC), local hour, weekday (0 = Sunday)</td></tr>
 <tr><td><code>rule:any</code> <code>rule:R-EXP-*</code> <code>sev:high,critical</code></td><td>Any rule hit, rule ID or wildcard, hit severity as graded for that row</td></tr>
@@ -306,7 +307,32 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <h3>URI stems and URI profile</h3>
 <p>Every path with requests, clients, status mix and first-seen time. The profile shows who requested a path and when it first appeared; a new executable path in an upload directory is the classic web-shell signal.</p>
 <h3>Top-N</h3>
-<p>Ranks a dimension by a measure, over the whole index or over the loaded rows. Over the index the dimensions are client IP, URI path, user agent, status, method, extension, server IP and port, user-agent family, user name and rule; loaded rows add effective IP, IP class, directory, query, local hour, local weekday, UTC day and source file. Measures are rows, distinct IPs, distinct paths, 4xx, 5xx, POST, average and maximum time taken, first and last seen, and rule-hit rows.</p>
+<p>Ranks a dimension by a measure, over the whole index or over the loaded rows. Over the index the dimensions are client IP, URI path, user agent, status, method, extension, server IP and port, user-agent family, user name and rule; loaded rows add effective IP, IP class, directory, query, local hour, local weekday, UTC day and source file. Measures are rows, distinct IPs, distinct paths, 4xx, 5xx, POST, average and maximum time taken, first and last seen, and rule-hit rows. Double-click a row to filter the grid to that value (or load its rows when none are loaded); a client IP or path opens its profile.</p>
+<h3 id="user-agents">User agents</h3>
+<figure>
+  <a class="shot" href="images/uas.png"><img src="images/uas.png" alt="User agents view listing each distinct user agent with flags, parsed browser and OS, release date, age when first seen, family and request counts, with the detail of a spoofed Chrome 114 on Windows 7 user agent" width="1600" height="947"></a>
+  <figcaption>The demo's unusual user agents, most unusual first. The selected one claims Chrome 114 on Windows 7, a combination that never existed (Chrome 109 was the last version for Windows 7); it was used for the login brute force and received 424 public 2xx responses from executable handlers.</figcaption>
+</figure>
+<p>Lists each distinct user agent with what it claims to be and why it stands out, over the whole index or over the loaded rows. The browser and its major version, the operating system, the version's release date and how old it was when the user agent was first seen are parsed from the string; release dates come from <code>lists\browser-releases.txt</code> (see <a href="#rules">Lists</a>).</p>
+<div class="table-wrap"><table>
+<tr><th>Flag</th><th>Meaning</th></tr>
+<tr><td><code>stale</code></td><td>The browser version was older than <em>Stale after (days)</em> (365 by default) when the request was made. Browsers update themselves, so an old version is unusual; attack tools often hard-code an old browser string.</td></tr>
+<tr><td><code>eol</code></td><td>The browser was past its end of support at the time: Internet Explorer (10 and older from January 2016, 11 from June 2022), EdgeHTML Edge, Presto Opera.</td></tr>
+<tr><td><code>eol-os</code></td><td>The Windows version was past its end of support at the time: 2000, XP, Vista, 7, 8, 8.1, Windows Phone, Windows 9x.</td></tr>
+<tr><td><code>impossible</code></td><td>A combination that never existed: a browser version released only later (more than 120 days after the request, so beta and developer builds are not flagged), Chrome or Edge after 49 on XP or Vista or after 109 on Windows 7 to 8.1, Firefox after 52 on XP or Vista or after 115 on Windows 7 to 8.1, Internet Explorer versions that a Windows version never had, EdgeHTML outside Windows 10, Safari after 5.1 on Windows, or a Windows NT version that does not exist (such as 11.0).</td></tr>
+<tr><td><code>malformed</code></td><td>Unbalanced brackets, control characters, a misspelt or unusual Mozilla token, no space after it, a Chrome version not in the four-part form browsers send, or more than 768 characters.</td></tr>
+<tr><td><code>inject</code></td><td>An exploit payload in the user agent: Log4Shell lookups, Shellshock, OGNL, script tags, SQL or shell injection (rule R-UA-003).</td></tr>
+<tr><td><code>headless</code></td><td>A headless browser or automation tool: HeadlessChrome, PhantomJS, Selenium, WebDriver, Puppeteer, Playwright, HtmlUnit, Splash, Cypress.</td></tr>
+<tr><td><code>rare</code></td><td>Seen from no more than <em>Rare: clients &le;</em> clients (1 by default), at least one of them public.</td></tr>
+</table></div>
+<ul>
+  <li><strong>Show</strong> picks a preset: unusual (any flag or a non-browser family, the default), all, outdated, spoofed, exploit payloads, rare, non-browser families, or unusual user agents that received 2xx responses from executable handlers for public clients. The counts under the controls are clickable and show one flag.</li>
+  <li><strong>Columns:</strong> flags, browser, OS, release date (<code>~</code> marks a date extrapolated past the last listed release), age when first seen, family, requests, clients and public clients (counted up to 20 per user agent in the index), 2xx, 4xx, 5xx, public 2xx responses from executable handlers, rule-hit rows, first and last seen.</li>
+  <li><strong>Detail:</strong> the reason for each flag, where the user agent was first seen, its status mix, its clients and its findings. <em>Filter grid to this user agent</em>, <em>Load all rows</em>, <em>Raw context of first occurrence</em> and <em>Copy</em> act on it; double-click a row to filter, right-click for more.</li>
+  <li><strong>Thresholds:</strong> <em>Stale after (days)</em> and <em>Rare: clients &le;</em> are saved in your settings and also apply to the <code>uaflag:</code> filter.</li>
+  <li><strong>Everywhere else:</strong> the IP profile lists each client's user agents with their flags, the grid can show <em>Browser / OS</em>, <em>UA age (days)</em> and <em>UA flags</em> columns, and the filters <code>uaflag:</code>, <code>uaage:</code> and <code>browser:</code> work in the grid, in load pre-filters and in Timeline series.</li>
+</ul>
+<p>When the index reaches its user-agent cap (100,000), rarely seen user agents are dropped first; user agents with rule hits are always kept, and the view says how many were dropped. Load rows for the complete picture.</p>
 <h3>Timeline</h3>
 <figure>
   <a class="shot" href="images/timeline.png"><img src="images/timeline.png" alt="Timeline of requests over time with four series: all rows, public clients, 5xx responses and rows with rule hits" width="1600" height="947"></a>
@@ -376,6 +402,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td>Selected rows &rarr; raw line bundle</td><td>The original lines byte-for-byte as stored in the evidence, grouped by file with line numbers</td></tr>
 <tr><td>Findings &rarr; CSV / JSON</td><td>All findings with dispositions</td></tr>
 <tr><td>Integrity, Client IPs, URI stems, Sessions, Top-N &rarr; CSV</td><td>The corresponding tables</td></tr>
+<tr><td>User agents &rarr; CSV</td><td>The user agents shown in the User agents view, with raw string, flags and reasons, browser, OS, release date, age, status mix, first occurrence and clients</td></tr>
 <tr><td>Log Parser result, IOC hits &rarr; CSV</td><td>The last query result, IOC matches</td></tr>
 <tr><td>Case bundle &rarr; ZIP</td><td>The case workspace without temporary files</td></tr>
 </table></div>
@@ -391,7 +418,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 
 <section id="rules">
 <h2>Detection rules</h2>
-<p><code>rules\default-rules.json</code> defines 41 rules with severity, ATT&amp;CK techniques, description, false positives and tunable parameters. <em>Row</em> rules evaluate each request; <em>aggregate</em> rules evaluate the index; <em>file</em> and <em>corpus</em> rules evaluate log integrity. Rules can be switched on or off per case under Settings.</p>
+<p><code>rules\default-rules.json</code> defines 44 rules with severity, ATT&amp;CK techniques, description, false positives and tunable parameters. <em>Row</em> rules evaluate each request; <em>aggregate</em> rules evaluate the index; <em>file</em> and <em>corpus</em> rules evaluate log integrity. Rules can be switched on or off per case under Settings.</p>
 <div class="table-wrap"><table>
 <tr><th>ID</th><th>Severity</th><th>Scope</th><th>Name</th><th>ATT&amp;CK</th></tr>
 <tr><td class="nowrap">R-SCAN-001</td><td class="sev medium">medium</td><td>aggregate</td><td>High 404 volume from single public client</td><td>T1595.003</td></tr>
@@ -424,6 +451,9 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td class="nowrap">R-AUTH-003</td><td class="sev medium">medium</td><td>row</td><td>Authenticated account activity of interest</td><td>T1078</td></tr>
 <tr><td class="nowrap">R-AUTH-004</td><td class="sev low">low</td><td>aggregate</td><td>Internal off-hours use of application handlers</td><td>T1078</td></tr>
 <tr><td class="nowrap">R-AUTH-005</td><td class="sev low">low</td><td>aggregate</td><td>User-agent rotation</td><td>T1110.004</td></tr>
+<tr><td class="nowrap">R-UA-001</td><td class="sev low">low</td><td>aggregate</td><td>Outdated browser user agent reaching executable handlers</td><td>T1595</td></tr>
+<tr><td class="nowrap">R-UA-002</td><td class="sev low">low</td><td>aggregate</td><td>Spoofed, malformed or automation user agent (medium with public 2xx from executable handlers)</td><td>T1036</td></tr>
+<tr><td class="nowrap">R-UA-003</td><td class="sev medium">medium</td><td>row</td><td>Exploit payload in the user agent</td><td>T1190</td></tr>
 <tr><td class="nowrap">R-EXF-001</td><td class="sev medium">medium</td><td>row</td><td>Archive / database / document downloaded by public client</td><td>T1005, T1041</td></tr>
 <tr><td class="nowrap">R-EXF-002</td><td class="sev medium">medium</td><td>row</td><td>Large or long-running response to public client</td><td>T1041</td></tr>
 <tr><td class="nowrap">R-EXF-003</td><td class="sev low">low</td><td>row</td><td>Download / attachment / export endpoint use by public client</td><td>T1119, T1041</td></tr>
@@ -450,6 +480,8 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <p>Add row rules to the JSON with a <code>match</code> block (see the disabled example <code>C-EXAMPLE-001</code>). Supported keys: <code>method</code>, <code>stem</code>, <code>query</code>, <code>ua</code>, <code>user</code>, <code>raw</code> (each <code>{contains|glob|regex|equals}</code>), <code>status</code> (<code>404</code>, <code>4xx</code>, <code>404.8</code>), <code>ipClass</code>, <code>uaFamily</code>, <code>ext</code>, <code>cip</code> (CIDRs), <code>minTaken</code> and <code>exec</code>.</p>
 <h3>Lists</h3>
 <p><code>lists\*.txt</code> hold the vocabularies the rules use: sensitive paths, scanner user agents, executable and static extensions, login and download endpoints, known exploit paths, upload directories, web shell names and parameters. One entry per line; <code>re:</code> starts a regular expression, <code>*</code> and <code>?</code> make a glob, anything else is a substring. Restart the app after editing.</p>
+<p><code>lists\browser-releases.txt</code> is different: it lists the first stable release date of browser major versions (<code>chrome 140 2025-09-02</code>), the expected days between versions after the last listed one (<code>cadence chrome 31</code>) and end-of-support dates (<code>eol ie 2022-06-15 11</code>). Versions between two listed ones are interpolated and later versions extrapolated, so add the newest releases from time to time to keep ages exact. The Chrome dates also serve Edge, Opera, Brave, Vivaldi, Samsung Internet and other Chromium browsers through their <code>Chrome/</code> token.</p>
+<p>R-UA-001 reports a browser user agent that was at least two years old when first seen (<code>minAgeDays</code>, or past its end of support), used by no more than 20 clients, that received 2xx responses from executable handlers for public clients. R-UA-002 reports user agents of public clients flagged impossible, malformed or headless. Both are aggregate rules over the index, judged at the time each user agent was first seen; R-UA-003 is a row rule.</p>
 <h3>Networks</h3>
 <ul>
   <li><strong>Internal CIDRs</strong> (Settings) are classed <code>internal</code> in addition to RFC 1918 ranges.</li>
@@ -473,6 +505,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <tr><td>Index caps (IPs, paths, user agents)</td><td>250,000 / 500,000 / 100,000</td><td>Bound the index; rare entries are evicted, entries with evidence value never are</td></tr>
 <tr><td>Rule-hit pointers kept per rule</td><td>20,000</td><td>Rows per rule that findings can load directly</td></tr>
 <tr><td>Session idle minutes</td><td>30</td><td>Session split</td></tr>
+<tr><td>User agents: stale after (days), rare clients</td><td>365 / 1</td><td>The <code>stale</code> and <code>rare</code> user-agent flags (set on the User agents view)</td></tr>
 <tr><td>Hash files during scan</td><td>On</td><td>SHA-256 of every evidence file</td></tr>
 <tr><td>Internal CIDRs, allow-list file</td><td>none</td><td>Network classification</td></tr>
 <tr><td>Log Parser 2.2 path</td><td>detected</td><td>Optional SQL bridge</td></tr>
@@ -545,7 +578,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 <h2>Demo data and testing</h2>
 <p>The repository contains no real evidence. To try the tool, generate the synthetic demo logs used for the screenshots in this manual and open <code>demo\LogFiles\W3SVC1</code>:</p>
 <pre><code>node tools\make-demo-logs.js</code></pre>
-<p>The demo covers 42 days of traffic for a fictitious portal with an intrusion: automated scanning, a login brute force, a web shell upload and its use, document enumeration and a large download, after-hours internal activity, a server restart and a logging gap. Its attackers use documentation IP ranges, so turn on <em>treat documentation ranges as public</em> in Settings before scanning it. <code>tools\capture-screens.ps1</code> regenerates the screenshots.</p>
+<p>The demo covers 42 days of traffic for a fictitious portal with an intrusion: automated scanning with Log4Shell and Shellshock user agents, a login brute force under a spoofed user agent, a web shell upload and its use, document enumeration and a large download, after-hours internal activity, a server restart and a logging gap. Its attackers use documentation IP ranges, so turn on <em>treat documentation ranges as public</em> in Settings before scanning it. <code>tools\capture-screens.ps1</code> regenerates the screenshots.</p>
 <p>The <code>test</code> folder holds the regression tools: a Node.js harness that runs the scanner headless, an engine comparison, a cancel-and-resume comparison, a time-zone oracle, a self-test runner for the HTA itself, and hostile fixtures for markup injection, field reordering, malformed rows, encodings and impossible dates. See the README for the commands.</p>
 </section>
 
@@ -561,7 +594,7 @@ tmp\        transient engine jobs, hashing and Log Parser scripts</code></pre>
 </ul>
 </section>
 
-<footer>IIS Log Analyzer 1.3.3 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
+<footer>IIS Log Analyzer 1.4.0 &middot; manual updated 2026-10-05. Screenshots show synthetic data generated by <code>tools\make-demo-logs.js</code>; all addresses are private or from documentation ranges.</footer>
 </div>
 </main>
 </div>

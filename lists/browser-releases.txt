@@ -1,0 +1,167 @@
+# Browser release dates, used to judge how old a user agent's browser version was when the request was made
+# (User agents view, the uaage: and uaflag: filters, rules R-UA-001 and R-UA-002).
+#
+#   <engine> <major> <YYYY-MM-DD>    first stable release of that major version
+#   cadence <engine> <days>          days per major version after the last listed one (extrapolation)
+#   eol <engine> <YYYY-MM-DD> [max]  end of support, for majors up to [max] (all majors when omitted)
+#
+# Engines: chrome (the Chrome/ token: Chrome, Edge 79+, Opera 15+, Brave, Vivaldi, Samsung Internet, Yandex, CriOS),
+# firefox (Firefox/, and FxiOS/ from 100), safari (the Version/ token of Safari), ie (MSIE / Trident), edgehtml (Edge/12-18),
+# presto (Opera 12 and older).
+# Versions between two listed ones are interpolated. Versions after the last listed one are extrapolated with the cadence,
+# so add the newest releases from time to time (an extrapolated date is shown with "~"). Restart the HTA after editing.
+
+chrome 1 2008-12-11
+chrome 2 2009-05-24
+chrome 3 2009-10-12
+chrome 4 2010-01-25
+chrome 5 2010-05-25
+chrome 6 2010-09-02
+chrome 8 2010-12-02
+chrome 10 2011-03-08
+chrome 12 2011-06-07
+chrome 14 2011-09-16
+chrome 16 2011-12-13
+chrome 18 2012-03-28
+chrome 20 2012-06-26
+chrome 22 2012-09-25
+chrome 24 2013-01-10
+chrome 26 2013-03-26
+chrome 28 2013-07-09
+chrome 30 2013-10-01
+chrome 32 2014-01-14
+chrome 34 2014-04-08
+chrome 36 2014-07-16
+chrome 38 2014-10-07
+chrome 40 2015-01-21
+chrome 42 2015-04-14
+chrome 44 2015-07-21
+chrome 46 2015-10-13
+chrome 48 2016-01-20
+chrome 49 2016-03-02
+chrome 50 2016-04-13
+chrome 52 2016-07-20
+chrome 54 2016-10-12
+chrome 56 2017-01-25
+chrome 58 2017-04-19
+chrome 60 2017-07-25
+chrome 62 2017-10-17
+chrome 64 2018-01-24
+chrome 66 2018-04-17
+chrome 68 2018-07-24
+chrome 70 2018-10-16
+chrome 72 2019-01-29
+chrome 74 2019-04-23
+chrome 76 2019-07-30
+chrome 78 2019-10-22
+chrome 80 2020-02-04
+chrome 81 2020-04-07
+chrome 83 2020-05-19
+chrome 84 2020-07-14
+chrome 86 2020-10-06
+chrome 88 2021-01-19
+chrome 90 2021-04-14
+chrome 92 2021-07-20
+chrome 94 2021-09-21
+chrome 96 2021-11-15
+chrome 98 2022-02-01
+chrome 100 2022-03-29
+chrome 102 2022-05-24
+chrome 104 2022-08-02
+chrome 106 2022-09-27
+chrome 108 2022-11-29
+chrome 109 2023-01-10
+chrome 110 2023-02-07
+chrome 112 2023-04-04
+chrome 114 2023-05-30
+chrome 116 2023-08-15
+chrome 118 2023-10-10
+chrome 120 2023-12-05
+chrome 122 2024-02-20
+chrome 124 2024-04-16
+chrome 126 2024-06-11
+chrome 128 2024-08-20
+chrome 130 2024-10-15
+chrome 132 2025-01-14
+chrome 134 2025-03-04
+chrome 136 2025-04-29
+chrome 138 2025-06-24
+chrome 140 2025-09-02
+cadence chrome 31
+
+firefox 1 2004-11-09
+firefox 2 2006-10-24
+firefox 3 2008-06-17
+firefox 4 2011-03-22
+firefox 5 2011-06-21
+firefox 10 2012-01-31
+firefox 15 2012-08-28
+firefox 20 2013-04-02
+firefox 25 2013-10-29
+firefox 30 2014-06-10
+firefox 35 2015-01-13
+firefox 40 2015-08-11
+firefox 45 2016-03-08
+firefox 50 2016-11-15
+firefox 52 2017-03-07
+firefox 55 2017-08-08
+firefox 60 2018-05-09
+firefox 65 2019-01-29
+firefox 70 2019-10-22
+firefox 75 2020-04-07
+firefox 80 2020-08-25
+firefox 85 2021-01-26
+firefox 90 2021-07-13
+firefox 95 2021-12-07
+firefox 100 2022-05-03
+firefox 105 2022-09-20
+firefox 110 2023-02-14
+firefox 115 2023-07-04
+firefox 120 2023-11-21
+firefox 125 2024-04-16
+firefox 128 2024-07-09
+firefox 130 2024-09-03
+firefox 135 2025-02-04
+firefox 140 2025-06-24
+firefox 143 2025-09-16
+cadence firefox 29
+
+safari 3 2007-10-26
+safari 4 2009-06-08
+safari 5 2010-06-07
+safari 6 2012-07-25
+safari 7 2013-10-22
+safari 8 2014-10-16
+safari 9 2015-09-30
+safari 10 2016-09-20
+safari 11 2017-09-19
+safari 12 2018-09-17
+safari 13 2019-09-19
+safari 14 2020-09-16
+safari 15 2021-09-20
+safari 16 2022-09-12
+safari 17 2023-09-18
+safari 18 2024-09-16
+safari 26 2025-09-15
+cadence safari 365
+
+ie 5 1999-03-18
+ie 6 2001-08-27
+ie 7 2006-10-18
+ie 8 2009-03-19
+ie 9 2011-03-14
+ie 10 2012-10-26
+ie 11 2013-10-17
+
+edgehtml 12 2015-07-29
+edgehtml 13 2015-11-12
+edgehtml 14 2016-08-02
+edgehtml 15 2017-04-11
+edgehtml 16 2017-10-17
+edgehtml 17 2018-04-30
+edgehtml 18 2018-11-13
+
+eol ie 2016-01-12 10
+eol ie 2022-06-15 11
+eol edgehtml 2021-03-09
+eol presto 2016-02-16

@@ -14,6 +14,8 @@
   "displayTzLabel": "UTC",
   "businessHours": { "start": "08:00", "end": "19:00", "days": [1, 2, 3, 4, 5] },
   "sessionIdleMinutes": 30,
+  "uaStaleDays": 365,
+  "uaRareIps": 1,
   "hashOnScan": true,
   "indexCaps": { "ips": 250000, "stems": 500000, "uas": 100000 },
   "ruleHitRetention": 20000,
